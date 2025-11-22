@@ -14,10 +14,10 @@ class DiceLoss(nn.Module):
         pred = pred.contiguous()
         target = target.contiguous()
         
-        intersection = (pred * target).sum(dim=2).sum(dim=2)
+        intersection = (pred * target).sum(dim=(2, 3))
         
         loss = (1 - ((2. * intersection + self.smooth) / 
-                     (pred.sum(dim=2).sum(dim=2) + target.sum(dim=2).sum(dim=2) + self.smooth)))
+                     (pred.sum(dim=(2, 3)) + target.sum(dim=(2, 3)) + self.smooth)))
         
         return loss.mean()
 
