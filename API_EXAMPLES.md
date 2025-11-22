@@ -37,103 +37,59 @@ curl http://localhost:8001/health
 }
 ```
 
-### Проверка статуса модели
-```bash
-curl http://localhost:8001/models/status
-```
+## 2. Загрузка DICOM файла (Start Analysis)
 
-Ответ:
-```json
-{
-  "model_loaded": true,
-  "model_type": "segmentation",
-  "model_path": "models/segmentation_model.pth"
-}
-```
-
-## 2. Загрузка DICOM файла
+Используется `multipart/form-data`.
 
 ### Через curl (с локальным файлом)
 
 ```bash
-curl -X POST http://localhost:8080/api/dicom/upload \
-  -H "Content-Type: application/json" \
-  -d '{
-    "filename": "patient_scan.dcm",
-    "data": "'"$(base64 -i path/to/your/file.dcm)"'"
-  }'
+curl -X POST http://localhost:8080/api/analysis \
+  -F "file=@/path/to/your/file.dcm"
 ```
 
 Ответ:
 ```json
 {
-  "taskId": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "uploaded",
-  "message": "File uploaded successfully. Processing started."
+  "taskId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
-### Через Python
-
-```python
-import requests
-import base64
-
-# Загрузить DICOM файл
-with open('path/to/file.dcm', 'rb') as f:
-    dicom_data = base64.b64encode(f.read()).decode('utf-8')
-
-response = requests.post(
-    'http://localhost:8080/api/dicom/upload',
-    json={
-        'filename': 'patient_scan.dcm',
-        'data': dicom_data
-    }
-)
-
-task_id = response.json()['taskId']
-print(f"Task ID: {task_id}")
-```
-
-### Через Swift
+### Через Swift (URLSession)
 
 ```swift
 import Foundation
 
-struct FileUpload: Codable {
-    let filename: String
-    let data: String  // base64
-}
-
 struct UploadResponse: Codable {
     let taskId: UUID
-    let status: String
-    let message: String
 }
 
 func uploadDICOM(fileURL: URL) async throws -> UUID {
-    let data = try Data(contentsOf: fileURL)
-    let base64 = data.base64EncodedString()
-    
-    let upload = FileUpload(
-        filename: fileURL.lastPathComponent,
-        data: base64
-    )
-    
-    let url = URL(string: "http://localhost:8080/api/dicom/upload")!
+    let url = URL(string: "http://localhost:8080/api/analysis")!
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = try JSONEncoder().encode(upload)
     
-    let (data, _) = try await URLSession.shared.data(for: request)
-    let response = try JSONDecoder().decode(UploadResponse.self, from: data)
+    let boundary = UUID().uuidString
+    request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+    
+    var data = Data()
+    let filename = fileURL.lastPathComponent
+    let fileData = try Data(contentsOf: fileURL)
+    
+    data.append("--\(boundary)\r\n".data(using: .utf8)!)
+    data.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+    data.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+    data.append(fileData)
+    data.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+    
+    let (responseData, _) = try await URLSession.shared.upload(for: request, from: data)
+    let response = try JSONDecoder().decode(UploadResponse.self, from: responseData)
     
     return response.taskId
 }
 ```
 
-## 3. Проверка статуса задачи
+## 3. Проверка статуса задачи (Polling)
 
 ```bash
 curl http://localhost:8080/api/analysis/{taskId}/status
@@ -172,79 +128,9 @@ curl http://localhost:8080/api/analysis/{taskId}
   "diagnosis": "{\"status\":\"normal\",\"confidence\":0.85,\"recommendations\":[...],\"disclaimer\":\"...\"}"
 }
 ```
+*Примечание: поля `slicesData`, `masksData`, `parameters`, `diagnosis` приходят как JSON-строки, которые нужно распарсить.*
 
-## 5. Polling для получения результатов
-
-### Python пример
-
-```python
-import requests
-import time
-import json
-
-def wait_for_results(task_id, timeout=300, interval=2):
-    """
-    Ожидание завершения обработки
-    
-    Args:
-        task_id: UUID задачи
-        timeout: максимальное время ожидания (секунды)
-        interval: интервал между проверками (секунды)
-    
-    Returns:
-        dict: результаты анализа
-    """
-    start_time = time.time()
-    
-    while time.time() - start_time < timeout:
-        # Проверить статус
-        response = requests.get(
-            f'http://localhost:8080/api/analysis/{task_id}/status'
-        )
-        
-        if response.status_code != 200:
-            raise Exception(f"Error checking status: {response.text}")
-        
-        status_data = response.json()
-        status = status_data['status']
-        
-        print(f"Status: {status}")
-        
-        if status == 'completed':
-            # Получить результаты
-            response = requests.get(
-                f'http://localhost:8080/api/analysis/{task_id}'
-            )
-            return response.json()
-        
-        elif status == 'failed':
-            raise Exception(f"Task failed: {status_data.get('errorMessage')}")
-        
-        # Подождать перед следующей проверкой
-        time.sleep(interval)
-    
-    raise TimeoutError(f"Task did not complete within {timeout} seconds")
-
-# Использование
-try:
-    results = wait_for_results('550e8400-e29b-41d4-a716-446655440000')
-    
-    # Парсить результаты
-    parameters = json.loads(results['parameters'])
-    diagnosis = json.loads(results['diagnosis'])
-    
-    print(f"Fossa height: {parameters['fossa_height']} mm")
-    print(f"Head height: {parameters['head_height']} mm")
-    print(f"Width: {parameters['width']} mm")
-    print(f"Status: {diagnosis['status']}")
-    print(f"Confidence: {diagnosis['confidence']}")
-    print("\nRecommendations:")
-    for rec in diagnosis['recommendations']:
-        print(f"  - {rec}")
-    
-except Exception as e:
-    print(f"Error: {e}")
-```
+## 5. Пример полного цикла (Polling)
 
 ### Swift пример
 
@@ -279,131 +165,3 @@ func pollForResults(taskId: UUID) async throws -> AnalysisResponse {
                  userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for results"])
 }
 ```
-
-## 6. Полный workflow
-
-```python
-import requests
-import base64
-import json
-import time
-
-# 1. Загрузить DICOM файл
-with open('patient_scan.dcm', 'rb') as f:
-    dicom_data = base64.b64encode(f.read()).decode('utf-8')
-
-upload_response = requests.post(
-    'http://localhost:8080/api/dicom/upload',
-    json={
-        'filename': 'patient_scan.dcm',
-        'data': dicom_data
-    }
-)
-
-task_id = upload_response.json()['taskId']
-print(f"Task created: {task_id}")
-
-# 2. Ожидание обработки
-print("Waiting for processing...")
-while True:
-    status_response = requests.get(
-        f'http://localhost:8080/api/analysis/{task_id}/status'
-    )
-    status = status_response.json()['status']
-    print(f"Status: {status}")
-    
-    if status == 'completed':
-        break
-    elif status == 'failed':
-        print(f"Error: {status_response.json().get('errorMessage')}")
-        exit(1)
-    
-    time.sleep(2)
-
-# 3. Получить результаты
-results_response = requests.get(
-    f'http://localhost:8080/api/analysis/{task_id}'
-)
-results = results_response.json()
-
-# 4. Обработать результаты
-parameters = json.loads(results['parameters'])
-diagnosis = json.loads(results['diagnosis'])
-
-print("\n=== РЕЗУЛЬТАТЫ АНАЛИЗА ===")
-print(f"\nГеометрические параметры:")
-print(f"  Высота суставной ямки: {parameters['fossa_height']:.2f} мм")
-print(f"  Высота суставной головки: {parameters['head_height']:.2f} мм")
-print(f"  Ширина сустава: {parameters['width']:.2f} мм")
-
-print(f"\nДиагноз: {diagnosis['status']}")
-print(f"Уверенность: {diagnosis['confidence']:.2%}")
-
-print("\nРекомендации:")
-for rec in diagnosis['recommendations']:
-    print(f"  • {rec}")
-
-print(f"\n{diagnosis['disclaimer']}")
-```
-
-## 7. Декодирование изображений из base64
-
-```python
-import base64
-from PIL import Image
-from io import BytesIO
-
-def decode_base64_image(base64_string):
-    """Декодировать base64 в PIL Image"""
-    image_bytes = base64.b64decode(base64_string)
-    return Image.open(BytesIO(image_bytes))
-
-# Использование
-slices_data = json.loads(results['slicesData'])
-masks_data = json.loads(results['masksData'])
-
-# Показать первый ортогональный срез
-if slices_data['orthogonal']:
-    slice_image = decode_base64_image(slices_data['orthogonal'][0])
-    slice_image.show()
-    
-# Показать первую маску
-if masks_data['orthogonal']:
-    mask_image = decode_base64_image(masks_data['orthogonal'][0])
-    mask_image.show()
-```
-
-## Troubleshooting
-
-### Backend не запускается
-
-```bash
-cd Backend
-swift package clean
-swift build
-```
-
-### ML Service не может найти модель
-
-```bash
-# Проверить наличие модели
-ls -la MLService/models/
-
-# Если модели нет, сервис работает в dummy mode
-# Можно запустить без модели для тестирования
-```
-
-### Ошибка при загрузке большого файла
-
-Увеличить лимит размера в `Backend/Sources/App/configure.swift`:
-```swift
-app.routes.defaultMaxBodySize = "1gb"  // Увеличить до 1GB
-```
-
-### Таймаут при обработке
-
-Увеличить таймаут в `Backend/Sources/App/Services/MLServiceClient.swift`:
-```swift
-let response = try await client.execute(request, timeout: .minutes(30))
-```
-

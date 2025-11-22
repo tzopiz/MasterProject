@@ -40,7 +40,7 @@ struct MLServiceClient {
         
         let responseBody = try await response.body.collect(upTo: 50 * 1024 * 1024) // 50MB max
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        // decoder.keyDecodingStrategy = .convertFromSnakeCase // Removed: We use explicit CodingKeys
         
         let mlResponse = try decoder.decode(MLServiceResponse.self, from: responseBody)
         
