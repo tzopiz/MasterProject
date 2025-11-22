@@ -24,7 +24,11 @@ struct DICOMStorageService {
             mode: .write,
             flags: .allowFileCreation(),
             eventLoop: app.eventLoopGroup.next()
-        ).get()
+        )
+        
+        defer {
+            try? fileHandle.close()
+        }
         
         defer {
             try? fileHandle.close()
