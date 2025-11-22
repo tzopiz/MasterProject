@@ -1,5 +1,6 @@
 import Vapor
 import Foundation
+import NIOCore
 
 struct DICOMStorageService {
     let app: Application
@@ -17,9 +18,21 @@ struct DICOMStorageService {
         let uniqueFilename = "\(UUID().uuidString)_\(filename)"
         let filePath = uploadsDir + uniqueFilename
         
-        // Save file
-        let fileIO = app.fileio
-        try await fileIO.writeFile(data, at: filePath)
+        // Save file using FileIO
+        let fileHandle = try await app.fileio.openFile(
+            path: filePath,
+            mode: .write,
+            flags: .allowFileCreation(),
+            eventLoop: app.eventLoopGroup.next()
+        ).get()
+        
+        try await app.fileio.write(
+            fileHandle: fileHandle,
+            buffer: data,
+            eventLoop: app.eventLoopGroup.next()
+        ).get()
+        
+        try fileHandle.close()
         
         return filePath
     }
