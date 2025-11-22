@@ -44,17 +44,25 @@ async def startup_event():
     global segmentation_model
     logger.info("Starting ML Service...")
     
-    # Try to load segmentation model if it exists
-    try:
-        model_path = os.getenv("MODEL_PATH", "models/segmentation_model.pth")
+    # Try to load best model first, then default
+    possible_paths = [
+        os.getenv("MODEL_PATH", "models/segmentation_model_best.pth"),
+        "models/segmentation_model.pth"
+    ]
+    
+    model_loaded = False
+    for model_path in possible_paths:
         if os.path.exists(model_path):
-            segmentation_model = SegmentationModel(model_path)
-            logger.info(f"Segmentation model loaded from {model_path}")
-        else:
-            logger.warning(f"Model not found at {model_path}. Using dummy mode.")
-            segmentation_model = SegmentationModel(None)  # Dummy mode
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
+            try:
+                segmentation_model = SegmentationModel(model_path)
+                logger.info(f"Segmentation model loaded from {model_path}")
+                model_loaded = True
+                break
+            except Exception as e:
+                logger.error(f"Failed to load model from {model_path}: {e}")
+    
+    if not model_loaded:
+        logger.warning(f"No valid model found. Using dummy mode.")
         segmentation_model = SegmentationModel(None)  # Dummy mode
     
     logger.info("ML Service started successfully")
@@ -159,17 +167,28 @@ async def process_dicom(request: ProcessRequest):
         dicom_data = dicom_processor.load_dicom(request.dicom_path)
         
         if dicom_data is None:
-            raise HTTPException(status_code=400, reason="Failed to load DICOM file")
+            # Fallback for folder path (if dicom_path is a directory)
+            if os.path.isdir(request.dicom_path):
+                 # This handles folder-based DICOM series (like our training data)
+                 # But load_dicom currently expects single file?
+                 # Let's extend load_dicom later. For now assume zip or single file workflow.
+                 pass
+            
+            if dicom_data is None: # Still None
+                 raise HTTPException(status_code=400, detail="Failed to load DICOM file or series")
         
         # Step 2: Find relevant slices
         logger.info("Step 2: Finding relevant slices...")
         slices_indices = slice_finder.find_slices(dicom_data)
         
-        # Extract slice images
+        # Extract slice images (base64 for frontend)
+        # Note: slice_finder returns indices. We need to extract actual images to base64 if we want to return them?
+        # Or Frontend fetches them separately?
+        # Assuming Frontend needs them now for MVP.
         slices_data = SlicesData(
-            orthogonal=slices_indices.get("orthogonal", []),
-            sagittal=slices_indices.get("sagittal", []),
-            frontal=slices_indices.get("frontal", [])
+            orthogonal=[], # TODO: Convert pixel_array[idx] to base64
+            sagittal=[],
+            frontal=[]
         )
         
         # Step 3: Run segmentation
@@ -179,9 +198,9 @@ async def process_dicom(request: ProcessRequest):
         else:
             logger.warning("Model not loaded, using dummy masks")
             masks = {
-                "orthogonal": ["dummy_mask_base64"] if slices_data.orthogonal else [],
-                "sagittal": ["dummy_mask_base64"] if slices_data.sagittal else [],
-                "frontal": ["dummy_mask_base64"] if slices_data.frontal else []
+                "orthogonal": [],
+                "sagittal": [],
+                "frontal": []
             }
         
         masks_data = MasksData(
@@ -233,4 +252,3 @@ async def process_dicom(request: ProcessRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
-

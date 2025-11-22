@@ -2,6 +2,7 @@ import argparse
 import logging
 import sys
 import os
+import random
 from pathlib import Path
 
 # Add project root to python path
@@ -35,21 +36,69 @@ def train_model(data_dir, epochs=50, batch_size=8, learning_rate=1e-4, device='c
     logger.info(f"Starting training on device: {device}")
     
     # 1. Setup Data
-    train_dir = Path(data_dir) / 'train'
-    val_dir = Path(data_dir) / 'val'
+    root_dir = Path(data_dir)
+    train_images_dir = root_dir / 'train' / 'images'
     
-    try:
+    train_files = []
+    val_files = []
+    
+    # Scenario A: Structured data (train/val folders)
+    if train_images_dir.exists():
+        logger.info("Found structured dataset (train/val folders)")
         train_dataset = TMJDataset(
-            train_dir / 'images', 
-            train_dir / 'masks', 
+            root_dir / 'train' / 'images', 
+            root_dir / 'train' / 'masks', 
             transform=get_training_transforms()
         )
         val_dataset = TMJDataset(
-            val_dir / 'images', 
-            val_dir / 'masks', 
+            root_dir / 'val' / 'images', 
+            root_dir / 'val' / 'masks', 
             transform=get_validation_transforms()
         )
+    else:
+        # Scenario B: Flat structure (e.g. NIfTI files in one folder)
+        logger.info("Looking for flat dataset structure (NIfTI/Images in data_dir)")
         
+        # Try to find NIfTI files
+        all_files = sorted(list(root_dir.glob('*.nii.gz')))
+        # Filter out masks
+        all_volumes = [f for f in all_files if '_mask' not in f.name]
+        
+        if all_volumes:
+            logger.info(f"Found {len(all_volumes)} volumes. Splitting into Train/Val.")
+            
+            # Shuffle and split by volume (to avoid slice leakage)
+            random.shuffle(all_volumes)
+            split_idx = int(len(all_volumes) * 0.8) # 80% train
+            
+            train_files = all_volumes[:split_idx]
+            val_files = all_volumes[split_idx:]
+            
+            # If dataset is too small (e.g. 1 volume), put it in both for testing?
+            # Or just train on it.
+            if not train_files and val_files:
+                train_files = val_files
+            if not val_files and train_files:
+                val_files = train_files # Validate on train set if only 1 volume
+                
+            logger.info(f"Train volumes: {len(train_files)}")
+            logger.info(f"Val volumes: {len(val_files)}")
+            
+            train_dataset = TMJDataset(
+                root_dir, root_dir, 
+                transform=get_training_transforms(),
+                file_list=train_files
+            )
+            val_dataset = TMJDataset(
+                root_dir, root_dir, 
+                transform=get_validation_transforms(),
+                file_list=val_files
+            )
+        else:
+            logger.error("No valid dataset found in structure or flat format.")
+            return
+
+    try:
         train_loader = DataLoader(
             train_dataset, 
             batch_size=batch_size, 
@@ -64,12 +113,11 @@ def train_model(data_dir, epochs=50, batch_size=8, learning_rate=1e-4, device='c
             num_workers=0
         )
         
-        logger.info(f"Train dataset size: {len(train_dataset)}")
-        logger.info(f"Val dataset size: {len(val_dataset)}")
+        logger.info(f"Train dataset size: {len(train_dataset)} slices")
+        logger.info(f"Val dataset size: {len(val_dataset)} slices")
         
     except Exception as e:
         logger.error(f"Error loading datasets: {e}")
-        logger.error("Ensure data structure is: data_dir/{train,val}/{images,masks}")
         return
 
     # 2. Setup Model
