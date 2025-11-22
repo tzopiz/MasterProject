@@ -26,13 +26,15 @@ struct DICOMStorageService {
             eventLoop: app.eventLoopGroup.next()
         ).get()
         
+        defer {
+            try? fileHandle.close()
+        }
+        
         try await app.fileio.write(
             fileHandle: fileHandle,
             buffer: data,
             eventLoop: app.eventLoopGroup.next()
         ).get()
-        
-        try fileHandle.close()
         
         return filePath
     }
