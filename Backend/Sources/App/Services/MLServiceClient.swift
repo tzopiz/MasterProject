@@ -1,6 +1,8 @@
 import Vapor
 import AsyncHTTPClient
 import Foundation
+import NIO
+import NIOFoundationCompat
 
 struct MLServiceClient {
     let app: Application
@@ -10,25 +12,51 @@ struct MLServiceClient {
         Environment.get("ML_SERVICE_URL") ?? "http://localhost:8001"
     }
     
-    func processFile(taskID: UUID, filePath: String) async throws -> MLProcessingResult {
+    func processSeries(taskID: UUID, directoryPath: String) async throws -> MLProcessingResult {
         let client = HTTPClient.shared
+        let boundary = "Boundary-\(UUID().uuidString)"
         
-        // Prepare request payload
-        let payload = MLProcessingRequest(
-            dicomPath: filePath,
-            taskId: taskID.uuidString
-        )
+        // Get all files in directory
+        let fileManager = FileManager.default
+        let fileURLs = try fileManager.contentsOfDirectory(at: URL(fileURLWithPath: directoryPath), 
+                                                          includingPropertiesForKeys: nil)
+                                      .filter { $0.pathExtension.lowercased() == "dcm" }
         
-        let encoder = JSONEncoder()
-        let requestBody = try encoder.encode(payload)
+        guard !fileURLs.isEmpty else {
+            throw Abort(.badRequest, reason: "No DICOM files found in directory")
+        }
         
+        // Construct Multipart Body
+        var body = ByteBufferAllocator().buffer(capacity: 0)
+        
+        // 1. Add Task ID field
+        body.writeString("--\(boundary)\r\n")
+        body.writeString("Content-Disposition: form-data; name=\"task_id\"\r\n\r\n")
+        body.writeString("\(taskID.uuidString)\r\n")
+        
+        // 2. Add Files
+        for fileURL in fileURLs {
+            let filename = fileURL.lastPathComponent
+            guard let fileData = try? Data(contentsOf: fileURL) else { continue }
+            
+            body.writeString("--\(boundary)\r\n")
+            body.writeString("Content-Disposition: form-data; name=\"files\"; filename=\"\(filename)\"\r\n")
+            body.writeString("Content-Type: application/dicom\r\n\r\n")
+            body.writeBytes(fileData)
+            body.writeString("\r\n")
+        }
+        
+        body.writeString("--\(boundary)--\r\n")
+        
+        // Send Request
         var request = HTTPClientRequest(url: "\(mlServiceURL)/process")
         request.method = .POST
-        request.headers.add(name: "Content-Type", value: "application/json")
-        request.body = .bytes(requestBody)
+        request.headers.add(name: "Content-Type", value: "multipart/form-data; boundary=\(boundary)")
+        request.body = .bytes(body)
         
-        app.logger.info("Sending request to ML Service for task: \(taskID)")
+        app.logger.info("Sending \(fileURLs.count) files to ML Service for task: \(taskID)")
         
+        // Increase timeout for large uploads
         let response = try await client.execute(request, timeout: .minutes(10))
         
         guard response.status == .ok else {
@@ -40,112 +68,50 @@ struct MLServiceClient {
         
         let responseBody = try await response.body.collect(upTo: 50 * 1024 * 1024) // 50MB max
         let decoder = JSONDecoder()
-        // decoder.keyDecodingStrategy = .convertFromSnakeCase // Removed: We use explicit CodingKeys
         
         let mlResponse = try decoder.decode(MLServiceResponse.self, from: responseBody)
         
-        // Convert to internal result format
-        return try MLProcessingResult(from: mlResponse)
+        return MLProcessingResult(from: mlResponse)
     }
 }
 
-// Request structures
-struct MLProcessingRequest: Codable {
-    let dicomPath: String
-    let taskId: String
-    
-    enum CodingKeys: String, CodingKey {
-        case dicomPath = "dicom_path"
-        case taskId = "task_id"
-    }
-}
 
-// Response structures from ML Service
+// Response structures from ML Service (Updated for 3D)
 struct MLServiceResponse: Codable {
     let taskId: String
     let status: String
-    let slices: SlicesData?
-    let masks: MasksData?
-    let parameters: GeometricParameters?
-    let diagnosis: DiagnosisData?
+    let tmj: TMJResult?
+    let errorMessage: String?
     
     enum CodingKeys: String, CodingKey {
         case taskId = "task_id"
         case status
-        case slices
-        case masks
-        case parameters
-        case diagnosis
+        case tmj
+        case errorMessage = "error_message"
     }
 }
 
-struct SlicesData: Codable {
-    let orthogonal: [String]?
-    let sagittal: [String]?
-    let frontal: [String]?
+struct TMJResult: Codable {
+    let left: BoundingBox
+    let right: BoundingBox
 }
 
-struct MasksData: Codable {
-    let orthogonal: [String]?
-    let sagittal: [String]?
-    let frontal: [String]?
+struct BoundingBox: Codable {
+    let center: [Float]
+    let bbox: [Int]
 }
 
-struct GeometricParameters: Codable {
-    let fossaHeight: Double?
-    let headHeight: Double?
-    let width: Double?
-    let additionalParams: [String: Double]?
-    
-    enum CodingKeys: String, CodingKey {
-        case fossaHeight = "fossa_height"
-        case headHeight = "head_height"
-        case width
-        case additionalParams = "additional_params"
-    }
-}
 
-struct DiagnosisData: Codable {
-    let status: String
-    let confidence: Double?
-    let recommendations: [String]?
-    let disclaimer: String?
-}
-
-// Internal result format
+// Internal result format (Simplified for now)
 struct MLProcessingResult {
-    let slicesData: String?
-    let masksData: String?
-    let parameters: String?
-    let diagnosis: String?
+    let leftTMJ: BoundingBox?
+    let rightTMJ: BoundingBox?
+    let errorMessage: String?
     
-    init(from response: MLServiceResponse) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        
-        if let slices = response.slices {
-            self.slicesData = String(data: try encoder.encode(slices), encoding: .utf8)
-        } else {
-            self.slicesData = nil
-        }
-        
-        if let masks = response.masks {
-            self.masksData = String(data: try encoder.encode(masks), encoding: .utf8)
-        } else {
-            self.masksData = nil
-        }
-        
-        if let params = response.parameters {
-            self.parameters = String(data: try encoder.encode(params), encoding: .utf8)
-        } else {
-            self.parameters = nil
-        }
-        
-        if let diag = response.diagnosis {
-            self.diagnosis = String(data: try encoder.encode(diag), encoding: .utf8)
-        } else {
-            self.diagnosis = nil
-        }
+    init(from response: MLServiceResponse) {
+        self.leftTMJ = response.tmj?.left
+        self.rightTMJ = response.tmj?.right
+        self.errorMessage = response.errorMessage
     }
 }
 
@@ -153,4 +119,3 @@ struct MLProcessingResult {
 extension HTTPClient {
     static let shared = HTTPClient(eventLoopGroupProvider: .singleton)
 }
-

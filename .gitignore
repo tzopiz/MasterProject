@@ -74,3 +74,14 @@ models/*.pth
 models/*.pt
 models/*.onnx
 
+# ML Service - Experiments and Notebooks
+MLService/experiments/*/
+!MLService/experiments/README.md
+MLService/notebooks/.ipynb_checkpoints/
+MLService/validation/reports/
+.wandb/
+*.tensorboard
+
+# Keep README files in experiments
+!MLService/experiments/**/README.md
+

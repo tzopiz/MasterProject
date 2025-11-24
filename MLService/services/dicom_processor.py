@@ -9,6 +9,94 @@ logger = logging.getLogger(__name__)
 class DICOMProcessor:
     """Handles DICOM file parsing and data extraction"""
     
+    def load_series(self, directory_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Load a DICOM series from a directory
+        
+        Args:
+            directory_path: Path to directory containing .dcm files
+            
+        Returns:
+            Dictionary containing 3D volume and metadata
+        """
+        try:
+            logger.info(f"Loading DICOM series from: {directory_path}")
+            
+            from pathlib import Path
+            dicom_files = sorted(list(Path(directory_path).glob("*.dcm")))
+            
+            if not dicom_files:
+                logger.error("No .dcm files found in directory")
+                return None
+            
+            # Read all files
+            slices = [pydicom.dcmread(str(f)) for f in dicom_files]
+            
+            # Sort by ImagePositionPatient Z
+            try:
+                slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
+            except AttributeError:
+                logger.warning("ImagePositionPatient not found, sorting by filename")
+                slices.sort(key=lambda x: x.filename)
+            
+            # Create 3D volume
+            # Rescale to HU units
+            images = []
+            for s in slices:
+                image = s.pixel_array.astype(np.float32)
+                intercept = getattr(s, 'RescaleIntercept', 0)
+                slope = getattr(s, 'RescaleSlope', 1)
+                image = slope * image + intercept
+                images.append(image)
+            
+            pixel_array = np.stack(images)
+            
+            # Metadata from first slice
+            first = slices[0]
+            metadata = {
+                "patient_id": getattr(first, 'PatientID', 'Unknown'),
+                "study_date": getattr(first, 'StudyDate', 'Unknown'),
+                "modality": getattr(first, 'Modality', 'Unknown'),
+                "manufacturer": getattr(first, 'Manufacturer', 'Unknown'),
+                "rows": first.Rows,
+                "columns": first.Columns,
+            }
+            
+            pixel_spacing = getattr(first, 'PixelSpacing', [1.0, 1.0])
+            slice_thickness = getattr(first, 'SliceThickness', 1.0)
+            
+            # For series, we might need to calculate slice thickness from position difference
+            if len(slices) > 1:
+                try:
+                    z1 = float(slices[0].ImagePositionPatient[2])
+                    z2 = float(slices[1].ImagePositionPatient[2])
+                    calculated_thickness = abs(z2 - z1)
+                    if calculated_thickness > 0:
+                        slice_thickness = calculated_thickness
+                except:
+                    pass
+            
+            # Normalize for processing (0-255)
+            pixel_array_normalized = self._normalize_pixel_array(pixel_array)
+            
+            dicom_data = {
+                "pixel_array": pixel_array_normalized,
+                "original_array": pixel_array, # HU values
+                "metadata": metadata,
+                "pixel_spacing": pixel_spacing,
+                "slice_thickness": slice_thickness,
+                "num_slices": len(slices),
+                "shape": pixel_array.shape,
+                "dataset": first # Keep reference to first slice dataset
+            }
+            
+            logger.info(f"Series loaded: {pixel_array.shape}, Spacing: {pixel_spacing}, Thickness: {slice_thickness}")
+            return dicom_data
+            
+        except Exception as e:
+            logger.error(f"Error loading DICOM series: {str(e)}", exc_info=True)
+            return None
+
     def load_dicom(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
         Load and parse DICOM file

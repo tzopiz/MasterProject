@@ -10,24 +10,37 @@ final class AnalysisResult: Model, Content, @unchecked Sendable {
     @Parent(key: "task_id")
     var task: AnalysisTask
     
+    // Bounding Boxes (stored as JSON string)
+    @Field(key: "tmj_left")
+    var tmjLeft: String?
+    
+    @Field(key: "tmj_right")
+    var tmjRight: String?
+    
+    // Legacy fields (kept but optional/unused for now)
     @OptionalField(key: "slices_data")
-    var slicesData: String?  // JSON string
+    var slicesData: String?
     
     @OptionalField(key: "masks_data")
-    var masksData: String?  // JSON string
+    var masksData: String?
     
     @OptionalField(key: "parameters")
-    var parameters: String?  // JSON string
+    var parameters: String?
     
     @OptionalField(key: "diagnosis")
-    var diagnosis: String?  // JSON string
-    
-    @Timestamp(key: "created_at", on: .create)
-    var createdAt: Date?
+    var diagnosis: String?
     
     init() { }
     
-    init(id: UUID? = nil, taskID: UUID, slicesData: String? = nil, masksData: String? = nil, parameters: String? = nil, diagnosis: String? = nil) {
+    init(id: UUID? = nil, taskID: AnalysisTask.IDValue, tmjLeft: String? = nil, tmjRight: String? = nil) {
+        self.id = id
+        self.$task.id = taskID
+        self.tmjLeft = tmjLeft
+        self.tmjRight = tmjRight
+    }
+    
+    // Legacy init
+    init(id: UUID? = nil, taskID: AnalysisTask.IDValue, slicesData: String?, masksData: String?, parameters: String?, diagnosis: String?) {
         self.id = id
         self.$task.id = taskID
         self.slicesData = slicesData
@@ -41,12 +54,13 @@ struct CreateAnalysisResult: AsyncMigration {
     func prepare(on database: Database) async throws {
         try await database.schema(AnalysisResult.schema)
             .id()
-            .field("task_id", .uuid, .required, .references(AnalysisTask.schema, "id", onDelete: .cascade))
-            .field("slices_data", .string)
-            .field("masks_data", .string)
-            .field("parameters", .string)
-            .field("diagnosis", .string)
-            .field("created_at", .datetime)
+            .field("task_id", .uuid, .required, .references("analysis_tasks", "id"))
+            .field("tmj_left", .string)  // JSON String
+            .field("tmj_right", .string) // JSON String
+            .field("slices_data", .string) // Legacy
+            .field("masks_data", .string)  // Legacy
+            .field("parameters", .string)  // Legacy
+            .field("diagnosis", .string)   // Legacy
             .create()
     }
     
@@ -54,4 +68,3 @@ struct CreateAnalysisResult: AsyncMigration {
         try await database.schema(AnalysisResult.schema).delete()
     }
 }
-
