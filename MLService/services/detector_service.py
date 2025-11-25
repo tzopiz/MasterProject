@@ -4,6 +4,7 @@ import logging
 from typing import Optional, Dict, Tuple, List
 from skimage.transform import resize
 import os
+import json
 
 from models.tmj_detector import get_detector_model
 
@@ -17,8 +18,11 @@ class TMJDetectorService:
     
     def __init__(self, model_path: Optional[str] = None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if torch.backends.mps.is_available():
+            self.device = torch.device('mps')
         self.model = None
         self.input_shape = (96, 128, 128) # D, H, W as used in training
+        self.model_path = model_path
         
         if model_path:
             self.load_model(model_path)
@@ -29,25 +33,43 @@ class TMJDetectorService:
         try:
             logger.info(f"Loading TMJ Detector from {model_path}...")
             
+            # Try to detect model type from config
+            model_type = 'large'  # Default to large
+            
+            # Check if config.json exists in experiment directory
+            exp_dir = os.path.dirname(model_path)
+            config_path = os.path.join(exp_dir, 'config.json')
+            
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                        model_type = config.get('model_type', 'large')
+                        logger.info(f"Detected model type from config: {model_type}")
+                except Exception as e:
+                    logger.warning(f"Could not read config.json: {e}, using default 'large'")
+            
             # Initialize model architecture
-            # Assuming 'small' model by default, or check config
-            self.model = get_detector_model(model_type='small')
+            self.model = get_detector_model(model_type=model_type)
             
             # Load weights
-            checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
             
             if 'model_state_dict' in checkpoint:
                 self.model.load_state_dict(checkpoint['model_state_dict'])
+                logger.info(f"Loaded checkpoint from epoch {checkpoint.get('epoch', 'unknown')}")
+                if 'best_val_mae' in checkpoint:
+                    logger.info(f"Model best validation MAE: {checkpoint['best_val_mae']:.2f} px")
             else:
                 self.model.load_state_dict(checkpoint)
                 
             self.model.to(self.device)
             self.model.eval()
             
-            logger.info(f"TMJ Detector loaded successfully on {self.device}")
+            logger.info(f"TMJ Detector ({model_type}) loaded successfully on {self.device}")
             
         except Exception as e:
-            logger.error(f"Failed to load TMJ Detector: {e}")
+            logger.error(f"Failed to load TMJ Detector: {e}", exc_info=True)
             self.model = None
 
     def is_loaded(self) -> bool:

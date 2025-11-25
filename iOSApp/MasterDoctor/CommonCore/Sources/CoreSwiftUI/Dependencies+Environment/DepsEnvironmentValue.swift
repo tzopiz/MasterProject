@@ -1,7 +1,6 @@
 //  Created by Dmitrii Korchagin on 22.11.2025.
 
-import FoundationInternalInterface
-import FoundationInternalImpl
+import CommonDependencies
 import SwiftUI
 
 private struct Deps: EnvironmentKey {

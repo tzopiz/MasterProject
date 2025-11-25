@@ -1,19 +1,18 @@
 //  Created by Dmitrii Korchagin on 22.11.2025.
 
 import Foundation
-import CoreNetworkInterface
+import FoundationInternal
 
 public final class NetworkingService: NetworkingServiceProtocol {
     private let session: URLSession
-    
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder: any JSONDecoderProtocol
 
-    public init(session: URLSession = .shared) {
+    public init(
+        session: URLSession = .shared,
+        decoder: any JSONDecoderProtocol,
+    ) {
         self.session = session
+        self.decoder = decoder
     }
 
     public func request<T: Decodable & Sendable>(_ endpoint: Endpoint) async throws -> T {

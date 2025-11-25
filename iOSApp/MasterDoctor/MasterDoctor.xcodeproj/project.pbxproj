@@ -7,12 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3D8319C12ED1FD9F0089C74F /* CoreNetworkImpl in Frameworks */ = {isa = PBXBuildFile; productRef = 3D8319C02ED1FD9F0089C74F /* CoreNetworkImpl */; };
-		3D8319C32ED1FD9F0089C74F /* CoreNetworkInterface in Frameworks */ = {isa = PBXBuildFile; productRef = 3D8319C22ED1FD9F0089C74F /* CoreNetworkInterface */; };
-		3D8319C52ED1FD9F0089C74F /* CoreSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D8319C42ED1FD9F0089C74F /* CoreSwiftUI */; };
-		3D8319C72ED1FD9F0089C74F /* FoundationInternalImpl in Frameworks */ = {isa = PBXBuildFile; productRef = 3D8319C62ED1FD9F0089C74F /* FoundationInternalImpl */; };
-		3D8319C92ED1FD9F0089C74F /* FoundationInternalInterface in Frameworks */ = {isa = PBXBuildFile; productRef = 3D8319C82ED1FD9F0089C74F /* FoundationInternalInterface */; };
-		3D8319CC2ED2060D0089C74F /* AnalyticsApp in Frameworks */ = {isa = PBXBuildFile; productRef = 3D8319CB2ED2060D0089C74F /* AnalyticsApp */; };
+		3DFE10902ED6380700E4A3BC /* CommonDependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE108F2ED6380700E4A3BC /* CommonDependencies */; };
+		3DFE10922ED6380700E4A3BC /* CoreNetwork in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE10912ED6380700E4A3BC /* CoreNetwork */; };
+		3DFE10942ED6380700E4A3BC /* CoreSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE10932ED6380700E4A3BC /* CoreSwiftUI */; };
+		3DFE10972ED6381600E4A3BC /* FoundationInternal in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE10962ED6381600E4A3BC /* FoundationInternal */; };
+		3DFE109A2ED6382000E4A3BC /* CommonDependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE10992ED6382000E4A3BC /* CommonDependencies */; };
+		3DFE109C2ED6382000E4A3BC /* CoreNetwork in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE109B2ED6382000E4A3BC /* CoreNetwork */; };
+		3DFE109E2ED6382000E4A3BC /* CoreSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE109D2ED6382000E4A3BC /* CoreSwiftUI */; };
+		3DFE10A12ED6382900E4A3BC /* AnalyticsApp in Frameworks */ = {isa = PBXBuildFile; productRef = 3DFE10A02ED6382900E4A3BC /* AnalyticsApp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,12 +34,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3D8319C72ED1FD9F0089C74F /* FoundationInternalImpl in Frameworks */,
-				3D8319C52ED1FD9F0089C74F /* CoreSwiftUI in Frameworks */,
-				3D8319C32ED1FD9F0089C74F /* CoreNetworkInterface in Frameworks */,
-				3D8319CC2ED2060D0089C74F /* AnalyticsApp in Frameworks */,
-				3D8319C12ED1FD9F0089C74F /* CoreNetworkImpl in Frameworks */,
-				3D8319C92ED1FD9F0089C74F /* FoundationInternalInterface in Frameworks */,
+				3DFE10942ED6380700E4A3BC /* CoreSwiftUI in Frameworks */,
+				3DFE10922ED6380700E4A3BC /* CoreNetwork in Frameworks */,
+				3DFE109A2ED6382000E4A3BC /* CommonDependencies in Frameworks */,
+				3DFE10972ED6381600E4A3BC /* FoundationInternal in Frameworks */,
+				3DFE109E2ED6382000E4A3BC /* CoreSwiftUI in Frameworks */,
+				3DFE10A12ED6382900E4A3BC /* AnalyticsApp in Frameworks */,
+				3DFE109C2ED6382000E4A3BC /* CoreNetwork in Frameworks */,
+				3DFE10902ED6380700E4A3BC /* CommonDependencies in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,12 +92,14 @@
 			);
 			name = MasterDoctor;
 			packageProductDependencies = (
-				3D8319C02ED1FD9F0089C74F /* CoreNetworkImpl */,
-				3D8319C22ED1FD9F0089C74F /* CoreNetworkInterface */,
-				3D8319C42ED1FD9F0089C74F /* CoreSwiftUI */,
-				3D8319C62ED1FD9F0089C74F /* FoundationInternalImpl */,
-				3D8319C82ED1FD9F0089C74F /* FoundationInternalInterface */,
-				3D8319CB2ED2060D0089C74F /* AnalyticsApp */,
+				3DFE108F2ED6380700E4A3BC /* CommonDependencies */,
+				3DFE10912ED6380700E4A3BC /* CoreNetwork */,
+				3DFE10932ED6380700E4A3BC /* CoreSwiftUI */,
+				3DFE10962ED6381600E4A3BC /* FoundationInternal */,
+				3DFE10992ED6382000E4A3BC /* CommonDependencies */,
+				3DFE109B2ED6382000E4A3BC /* CoreNetwork */,
+				3DFE109D2ED6382000E4A3BC /* CoreSwiftUI */,
+				3DFE10A02ED6382900E4A3BC /* AnalyticsApp */,
 			);
 			productName = MasterDoctor;
 			productReference = 3D8319742ED1DEA10089C74F /* MasterDoctor.app */;
@@ -124,8 +130,9 @@
 			mainGroup = 3D83196B2ED1DEA10089C74F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				3D8319BF2ED1FD9F0089C74F /* XCLocalSwiftPackageReference "CommonCore" */,
-				3D8319CA2ED2060D0089C74F /* XCLocalSwiftPackageReference "MainFeatures" */,
+				3DFE10952ED6381600E4A3BC /* XCLocalSwiftPackageReference "Foundation" */,
+				3DFE10982ED6382000E4A3BC /* XCLocalSwiftPackageReference "CommonCore" */,
+				3DFE109F2ED6382900E4A3BC /* XCLocalSwiftPackageReference "MainFeatures" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3D8319752ED1DEA10089C74F /* Products */;
@@ -367,38 +374,50 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		3D8319BF2ED1FD9F0089C74F /* XCLocalSwiftPackageReference "CommonCore" */ = {
+		3DFE10952ED6381600E4A3BC /* XCLocalSwiftPackageReference "Foundation" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Foundation;
+		};
+		3DFE10982ED6382000E4A3BC /* XCLocalSwiftPackageReference "CommonCore" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = CommonCore;
 		};
-		3D8319CA2ED2060D0089C74F /* XCLocalSwiftPackageReference "MainFeatures" */ = {
+		3DFE109F2ED6382900E4A3BC /* XCLocalSwiftPackageReference "MainFeatures" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = MainFeatures;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		3D8319C02ED1FD9F0089C74F /* CoreNetworkImpl */ = {
+		3DFE108F2ED6380700E4A3BC /* CommonDependencies */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = CoreNetworkImpl;
+			productName = CommonDependencies;
 		};
-		3D8319C22ED1FD9F0089C74F /* CoreNetworkInterface */ = {
+		3DFE10912ED6380700E4A3BC /* CoreNetwork */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = CoreNetworkInterface;
+			productName = CoreNetwork;
 		};
-		3D8319C42ED1FD9F0089C74F /* CoreSwiftUI */ = {
+		3DFE10932ED6380700E4A3BC /* CoreSwiftUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CoreSwiftUI;
 		};
-		3D8319C62ED1FD9F0089C74F /* FoundationInternalImpl */ = {
+		3DFE10962ED6381600E4A3BC /* FoundationInternal */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = FoundationInternalImpl;
+			productName = FoundationInternal;
 		};
-		3D8319C82ED1FD9F0089C74F /* FoundationInternalInterface */ = {
+		3DFE10992ED6382000E4A3BC /* CommonDependencies */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = FoundationInternalInterface;
+			productName = CommonDependencies;
 		};
-		3D8319CB2ED2060D0089C74F /* AnalyticsApp */ = {
+		3DFE109B2ED6382000E4A3BC /* CoreNetwork */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CoreNetwork;
+		};
+		3DFE109D2ED6382000E4A3BC /* CoreSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CoreSwiftUI;
+		};
+		3DFE10A02ED6382900E4A3BC /* AnalyticsApp */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AnalyticsApp;
 		};

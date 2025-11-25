@@ -78,12 +78,18 @@ struct AnalysisController: RouteCollection {
             .filter(\.$task.$id == taskId)
             .first()
         
+        // Format dates
+        let dateFormatter = ISO8601DateFormatter()
+        
         return AnalysisResponse(
             taskId: taskId,
             status: task.status.rawValue,
             errorMessage: task.errorMessage,
             tmjLeft: result?.tmjLeft,
-            tmjRight: result?.tmjRight
+            tmjRight: result?.tmjRight,
+            volumeShape: result?.volumeShape,
+            createdAt: task.createdAt.map { dateFormatter.string(from: $0) },
+            updatedAt: task.updatedAt.map { dateFormatter.string(from: $0) }
         )
     }
     
@@ -115,7 +121,8 @@ struct AnalysisController: RouteCollection {
         let result = AnalysisResult(
             taskID: taskId,
             tmjLeft: leftStr,
-            tmjRight: rightStr
+            tmjRight: rightStr,
+            volumeShape: mlResult.volumeShape
         )
         try await result.save(on: app.db)
         
@@ -146,4 +153,7 @@ struct AnalysisResponse: Content {
     let errorMessage: String?
     let tmjLeft: String? // JSON String
     let tmjRight: String? // JSON String
+    let volumeShape: [Int]? // [depth, height, width] for client visualization
+    let createdAt: String?
+    let updatedAt: String?
 }

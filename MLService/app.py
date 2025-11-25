@@ -82,6 +82,7 @@ class ProcessResponse(BaseModel):
     task_id: str
     status: str
     tmj: Optional[TMJResult] = None
+    volume_shape: Optional[List[int]] = None  # [depth, height, width]
     error_message: Optional[str] = None
 
 class HealthResponse(BaseModel):
@@ -193,7 +194,8 @@ async def process_dicom(
         return ProcessResponse(
             task_id=task_id,
             status="completed",
-            tmj=tmj_result
+            tmj=tmj_result,
+            volume_shape=list(volume.shape)  # [D, H, W]
         )
 
     except Exception as e:

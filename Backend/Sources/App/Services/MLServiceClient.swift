@@ -81,12 +81,14 @@ struct MLServiceResponse: Codable {
     let taskId: String
     let status: String
     let tmj: TMJResult?
+    let volumeShape: [Int]?
     let errorMessage: String?
     
     enum CodingKeys: String, CodingKey {
         case taskId = "task_id"
         case status
         case tmj
+        case volumeShape = "volume_shape"
         case errorMessage = "error_message"
     }
 }
@@ -106,11 +108,13 @@ struct BoundingBox: Codable {
 struct MLProcessingResult {
     let leftTMJ: BoundingBox?
     let rightTMJ: BoundingBox?
+    let volumeShape: [Int]?
     let errorMessage: String?
     
     init(from response: MLServiceResponse) {
         self.leftTMJ = response.tmj?.left
         self.rightTMJ = response.tmj?.right
+        self.volumeShape = response.volumeShape
         self.errorMessage = response.errorMessage
     }
 }

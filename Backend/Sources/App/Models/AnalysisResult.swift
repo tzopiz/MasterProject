@@ -17,6 +17,10 @@ final class AnalysisResult: Model, Content, @unchecked Sendable {
     @Field(key: "tmj_right")
     var tmjRight: String?
     
+    // Volume dimensions for visualization
+    @OptionalField(key: "volume_shape")
+    var volumeShape: [Int]?
+    
     // Legacy fields (kept but optional/unused for now)
     @OptionalField(key: "slices_data")
     var slicesData: String?
@@ -32,11 +36,12 @@ final class AnalysisResult: Model, Content, @unchecked Sendable {
     
     init() { }
     
-    init(id: UUID? = nil, taskID: AnalysisTask.IDValue, tmjLeft: String? = nil, tmjRight: String? = nil) {
+    init(id: UUID? = nil, taskID: AnalysisTask.IDValue, tmjLeft: String? = nil, tmjRight: String? = nil, volumeShape: [Int]? = nil) {
         self.id = id
         self.$task.id = taskID
         self.tmjLeft = tmjLeft
         self.tmjRight = tmjRight
+        self.volumeShape = volumeShape
     }
     
     // Legacy init
@@ -57,6 +62,7 @@ struct CreateAnalysisResult: AsyncMigration {
             .field("task_id", .uuid, .required, .references("analysis_tasks", "id"))
             .field("tmj_left", .string)  // JSON String
             .field("tmj_right", .string) // JSON String
+            .field("volume_shape", .array(of: .int)) // [depth, height, width]
             .field("slices_data", .string) // Legacy
             .field("masks_data", .string)  // Legacy
             .field("parameters", .string)  // Legacy
