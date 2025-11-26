@@ -1,23 +1,20 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let targets: [PackageDescription.Target] = [
     .target(
-        name: "AnalyticsApp",
+        name: "FoundationInternal",
         dependencies: [
-            .CommonCore.CoreNetwork,
-            .CommonCore.CoreSwiftUI,
-            .CommonCore.CommonDependencies,
-            .Foundation.FoundationInternal,
+
         ],
-        path: "Sources/AnalyticsApp",
+        path: "Sources/FoundationInternal",
     ),
 ]
 
 let package = Package(
-    name: "MainFeatures",
+    name: "Foundation",
     defaultLocalization: "ru",
     platforms: [
         .iOS(.v18),
@@ -30,20 +27,15 @@ let package = Package(
 
     dependencies: [
         .package(path: "../CommonCore"),
-        .package(path: "../Foundation"),
     ],
 
     targets: targets,
 )
 
 extension Target.Dependency {
-    enum Foundation {
-        static let FoundationInternal: Target.Dependency = .product(name: "FoundationInternal", package: "Foundation")
-    }
-
-    enum CommonCore {
-        static let CoreNetwork: Target.Dependency = .product(name: "CoreNetwork", package: "CommonCore")
-        static let CoreSwiftUI: Target.Dependency = .product(name: "CoreSwiftUI", package: "CommonCore")
+    enum Core {
+        static let Network: Target.Dependency = .product(name: "CoreNetwork", package: "CommonCore")
+        static let SwiftUI: Target.Dependency = .product(name: "CoreSwiftUI", package: "CommonCore")
         static let CommonDependencies: Target.Dependency = .product(name: "CommonDependencies", package: "CommonCore")
     }
 }

@@ -5,40 +5,26 @@ import PackageDescription
 
 let targets: [PackageDescription.Target] = [
     .target(
-        name: "FoundationInternalImpl",
+        name: "CommonDependencies",
         dependencies: [
-            .Core.NetworkInterface,
-            .Core.NetworkImpl,
-            .FoundationInternalInterface,
+            .Internal.CoreNetwork,
+            .Foundation.FoundationInternal,
         ],
-        path: "Sources/FoundationInternal/FoundationInternalImpl",
+        path: "Sources/CommonDependencies",
     ),
     .target(
-        name: "FoundationInternalInterface",
+        name: "CoreNetwork",
         dependencies: [
-            .Core.NetworkInterface,
+            .Foundation.FoundationInternal,
         ],
-        path: "Sources/FoundationInternal/FoundationInternalInterface",
-    ),
-    .target(
-        name: "CoreNetworkImpl",
-        dependencies: [
-            .Core.NetworkInterface,
-        ],
-        path: "Sources/CoreNetwork/CoreNetworkImpl",
-    ),
-    .target(
-        name: "CoreNetworkInterface",
-        dependencies: [],
-        path: "Sources/CoreNetwork/CoreNetworkInterface",
+        path: "Sources/CoreNetwork",
     ),
     .target(
         name: "CoreSwiftUI",
         dependencies: [
-            .Core.NetworkImpl,
-            .Core.NetworkInterface,
-            .FoundationInternalInterface,
-            .FoundationInternalImpl,
+            .Internal.CoreNetwork,
+            .Internal.CommonDependencies,
+            .Foundation.FoundationInternal,
         ],
         path: "Sources/CoreSwiftUI",
     ),
@@ -57,16 +43,21 @@ let package = Package(
                 .library(name: target.name, targets: [target.name])
         },
 
+    dependencies: [
+        .package(path: "../Foundation"),
+    ],
+
     targets: targets,
 )
 
 extension Target.Dependency {
-    static let FoundationInternalImpl: Target.Dependency = .byName(name: "FoundationInternalImpl")
-    static let FoundationInternalInterface: Target.Dependency = .byName(name: "FoundationInternalInterface")
+    enum Internal {
+        static let CoreNetwork: Target.Dependency = .byName(name: "CoreNetwork")
+        static let CoreSwiftUI: Target.Dependency = .byName(name: "CoreSwiftUI")
+        static let CommonDependencies: Target.Dependency = .byName(name: "CommonDependencies")
+    }
 
-    enum Core {
-        static let NetworkImpl: Target.Dependency = .byName(name: "CoreNetworkImpl")
-        static let NetworkInterface: Target.Dependency = .byName(name: "CoreNetworkInterface")
-        static let SwiftUI: Target.Dependency = .byName(name: "CoreSwiftUI")
+    enum Foundation {
+        static let FoundationInternal: Target.Dependency = .product(name: "FoundationInternal", package: "Foundation")
     }
 }

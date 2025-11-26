@@ -18,29 +18,50 @@ struct DICOMStorageService {
         let uniqueFilename = "\(UUID().uuidString)_\(filename)"
         let filePath = uploadsDir + uniqueFilename
         
-        // Save file using FileIO
-        let fileHandle = try await app.fileio.openFile(
-            path: filePath,
-            mode: .write,
-            flags: .allowFileCreation(),
-            eventLoop: app.eventLoopGroup.next()
-        )
-        
-        defer {
-            try? fileHandle.close()
+        // Convert ByteBuffer to Data
+        guard let fileData = data.getData(at: 0, length: data.readableBytes) else {
+             throw Abort(.internalServerError, reason: "Failed to read file data")
         }
         
-        defer {
-            try? fileHandle.close()
-        }
+        // Write file synchronously (for now, assuming reasonable file sizes or offload to thread pool manually if needed)
+        // To be fully non-blocking, we should use app.threadPool.runIfActive
         
-        try await app.fileio.write(
-            fileHandle: fileHandle,
-            buffer: data,
-            eventLoop: app.eventLoopGroup.next()
-        ).get()
+        try await app.threadPool.runIfActive(eventLoop: app.eventLoopGroup.next()) {
+            try fileData.write(to: URL(fileURLWithPath: filePath))
+        }.get()
         
         return filePath
+    }
+    
+    func saveSeries(files: [File], taskID: UUID) async throws -> String {
+        let uploadsDir = app.directory.workingDirectory + "uploads/"
+        let taskDir = uploadsDir + taskID.uuidString + "/"
+        let fileManager = FileManager.default
+        
+        // Create task directory
+        if !fileManager.fileExists(atPath: taskDir) {
+            try fileManager.createDirectory(atPath: taskDir, withIntermediateDirectories: true)
+        }
+        
+        // Write all files
+        // For a large series, we might want to parallelize or offload this
+        try await app.threadPool.runIfActive(eventLoop: app.eventLoopGroup.next()) {
+            for file in files {
+                let filePath = taskDir + file.filename
+                if let data = file.data.getData(at: 0, length: file.data.readableBytes) {
+                    try? data.write(to: URL(fileURLWithPath: filePath))
+                }
+            }
+        }.get()
+        
+        return taskDir
+    }
+    
+    func deleteSeries(path: String) throws {
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: path) {
+            try fileManager.removeItem(atPath: path)
+        }
     }
     
     func deleteFile(path: String) throws {
@@ -50,4 +71,3 @@ struct DICOMStorageService {
         }
     }
 }
-

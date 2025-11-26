@@ -2,9 +2,9 @@
 
 import SwiftUI
 import CoreSwiftUI
-import FoundationInternalInterface
-import FoundationInternalImpl
-import CoreNetworkImpl
+import CommonDependencies
+import FoundationInternal
+import CoreNetwork
 
 import AnalyticsApp
 
@@ -12,14 +12,17 @@ import AnalyticsApp
 struct MasterDoctorApp: App {
     var body: some Scene {
         WindowGroup {
-            AnalysisResultView()
+            TMJDetectionView()
                 .environment(\.deps, confgiureDeps())
         }
     }
 }
 
 fileprivate func confgiureDeps() -> any Dependencies {
-    DependenciesImpl(
-        networkingService: NetworkingService(),
+    let decoder = JSONDecoderService()
+
+    return DependenciesImpl(
+        networkingService: NetworkingService(decoder: decoder),
+        decoder: decoder,
     )
 }

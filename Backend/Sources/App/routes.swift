@@ -5,11 +5,7 @@ func routes(_ app: Application) throws {
     let healthController = HealthController()
     try app.register(collection: healthController)
     
-    // DICOM upload and processing
-    let dicomController = DICOMController()
-    try app.register(collection: dicomController)
-    
-    // Analysis results
+    // Analysis (DICOM upload and processing)
     let analysisController = AnalysisController()
     try app.register(collection: analysisController)
 }

@@ -19,4 +19,9 @@ struct RawAnalysisResponse: Codable, Sendable {
     let masksData: String?
     let parameters: String?
     let diagnosis: String?
+    let tmjLeft: String?
+    let tmjRight: String?
+    let volumeShape: [Int]?
+    let createdAt: String?
+    let updatedAt: String?
 }

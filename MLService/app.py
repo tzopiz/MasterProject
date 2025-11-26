@@ -1,16 +1,16 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 import logging
 from datetime import datetime
 import os
+import shutil
+import tempfile
+import uuid
 
 from services.dicom_processor import DICOMProcessor
-from services.slice_finder import SliceFinder
-from services.geometry_calculator import GeometryCalculator
-from services.diagnosis_engine import DiagnosisEngine
-from models.segmentation_model import SegmentationModel
+from services.detector_service import TMJDetectorService
 
 # Configure logging
 logging.basicConfig(
@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="ML Service for DICOM Processing", version="1.0.0")
+app = FastAPI(title="ML Service for DICOM Processing (3D)", version="2.0.0")
 
 # CORS middleware
 app.add_middleware(
@@ -32,82 +32,58 @@ app.add_middleware(
 
 # Global instances
 dicom_processor = DICOMProcessor()
-slice_finder = SliceFinder()
-geometry_calculator = GeometryCalculator()
-diagnosis_engine = DiagnosisEngine()
-segmentation_model: Optional[SegmentationModel] = None
+detector_service: Optional[TMJDetectorService] = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize ML model on startup"""
-    global segmentation_model
+    global detector_service
     logger.info("Starting ML Service...")
     
-    # Try to load best model first, then default
-    possible_paths = [
-        os.getenv("MODEL_PATH", "models/segmentation_model_best.pth"),
-        "models/segmentation_model.pth"
-    ]
+    # Try to load best detector model
+    # Search in experiments/ for best_model.pth if not specified
+    model_path = os.getenv("MODEL_PATH")
     
-    model_loaded = False
-    for model_path in possible_paths:
-        if os.path.exists(model_path):
-            try:
-                segmentation_model = SegmentationModel(model_path)
-                logger.info(f"Segmentation model loaded from {model_path}")
-                model_loaded = True
-                break
-            except Exception as e:
-                logger.error(f"Failed to load model from {model_path}: {e}")
+    if not model_path:
+        # Try to find latest detector experiment
+        try:
+            exp_dir = "experiments"
+            if os.path.exists(exp_dir):
+                experiments = sorted([d for d in os.listdir(exp_dir) if d.startswith("detector_")])
+                if experiments:
+                    latest_exp = experiments[-1]
+                    candidate = os.path.join(exp_dir, latest_exp, "best_model.pth")
+                    if os.path.exists(candidate):
+                        model_path = candidate
+        except Exception as e:
+            logger.warning(f"Error searching for model: {e}")
     
-    if not model_loaded:
-        logger.warning(f"No valid model found. Using dummy mode.")
-        segmentation_model = SegmentationModel(None)  # Dummy mode
+    # Fallback
+    if not model_path:
+        model_path = "models/tmj_detector_best.pth"
+    
+    detector_service = TMJDetectorService(model_path if model_path and os.path.exists(model_path) else None)
     
     logger.info("ML Service started successfully")
 
 
-# Request/Response models
-class ProcessRequest(BaseModel):
-    dicom_path: str
-    task_id: str
+# Response Models
 
+class BoundingBox(BaseModel):
+    center: List[float] # [z, y, x]
+    bbox: List[int]     # [z1, y1, x1, z2, y2, x2]
 
-class SlicesData(BaseModel):
-    orthogonal: Optional[List[str]] = None
-    sagittal: Optional[List[str]] = None
-    frontal: Optional[List[str]] = None
-
-
-class MasksData(BaseModel):
-    orthogonal: Optional[List[str]] = None
-    sagittal: Optional[List[str]] = None
-    frontal: Optional[List[str]] = None
-
-
-class GeometricParameters(BaseModel):
-    fossa_height: Optional[float] = None
-    head_height: Optional[float] = None
-    width: Optional[float] = None
-    additional_params: Optional[Dict[str, float]] = None
-
-
-class DiagnosisData(BaseModel):
-    status: str
-    confidence: Optional[float] = None
-    recommendations: Optional[List[str]] = None
-    disclaimer: Optional[str] = None
-
+class TMJResult(BaseModel):
+    left: BoundingBox
+    right: BoundingBox
 
 class ProcessResponse(BaseModel):
     task_id: str
     status: str
-    slices: Optional[SlicesData] = None
-    masks: Optional[MasksData] = None
-    parameters: Optional[GeometricParameters] = None
-    diagnosis: Optional[DiagnosisData] = None
-
+    tmj: Optional[TMJResult] = None
+    volume_shape: Optional[List[int]] = None  # [depth, height, width]
+    error_message: Optional[str] = None
 
 class HealthResponse(BaseModel):
     status: str
@@ -115,10 +91,9 @@ class HealthResponse(BaseModel):
     timestamp: datetime
     model_loaded: bool
 
-
 class ModelStatusResponse(BaseModel):
     model_loaded: bool
-    model_type: Optional[str] = None
+    model_type: str = "tmj_detector_3d"
     model_path: Optional[str] = None
 
 
@@ -129,124 +104,113 @@ async def health_check():
         status="ok",
         service="ml-service",
         timestamp=datetime.now(),
-        model_loaded=segmentation_model is not None and segmentation_model.is_loaded()
+        model_loaded=detector_service is not None and detector_service.is_loaded()
     )
 
 
 @app.get("/models/status", response_model=ModelStatusResponse)
 async def model_status():
     """Check ML model status"""
-    if segmentation_model and segmentation_model.is_loaded():
+    if detector_service and detector_service.is_loaded():
         return ModelStatusResponse(
             model_loaded=True,
-            model_type="segmentation",
-            model_path=segmentation_model.model_path
+            model_path=detector_service.model.model_path if hasattr(detector_service.model, 'model_path') else "loaded"
         )
     return ModelStatusResponse(
-        model_loaded=False,
-        model_type=None,
-        model_path=None
+        model_loaded=False
     )
 
 
 @app.post("/process", response_model=ProcessResponse)
-async def process_dicom(request: ProcessRequest):
+async def process_dicom(
+    task_id: str = Form(...),
+    files: List[UploadFile] = File(...)
+):
     """
-    Process DICOM file:
-    1. Parse DICOM file
-    2. Find relevant slices
-    3. Run segmentation
-    4. Calculate geometric parameters
-    5. Generate diagnosis
+    Process DICOM Series (3D):
+    1. Save uploaded files to temp directory
+    2. Load 3D Volume
+    3. Run TMJ Detector
+    4. Return Bounding Box
     """
-    logger.info(f"Processing task: {request.task_id}, file: {request.dicom_path}")
+    logger.info(f"Processing task: {task_id}, files: {len(files)}")
     
+    temp_dir = None
     try:
-        # Step 1: Parse DICOM file
-        logger.info("Step 1: Parsing DICOM file...")
-        dicom_data = dicom_processor.load_dicom(request.dicom_path)
+        # 1. Save files
+        temp_dir = tempfile.mkdtemp(prefix=f"task_{task_id}_")
+        logger.info(f"Saving {len(files)} files to {temp_dir}")
+        
+        for file in files:
+            file_path = os.path.join(temp_dir, file.filename)
+            with open(file_path, "wb") as f:
+                content = await file.read()
+                f.write(content)
+        
+        # 2. Load Series
+        logger.info("Loading 3D volume...")
+        dicom_data = dicom_processor.load_series(temp_dir)
         
         if dicom_data is None:
-            # Fallback for folder path (if dicom_path is a directory)
-            if os.path.isdir(request.dicom_path):
-                 # This handles folder-based DICOM series (like our training data)
-                 # But load_dicom currently expects single file?
-                 # Let's extend load_dicom later. For now assume zip or single file workflow.
-                 pass
-            
-            if dicom_data is None: # Still None
-                 raise HTTPException(status_code=400, detail="Failed to load DICOM file or series")
+             raise HTTPException(status_code=400, detail="Failed to load DICOM series from uploaded files")
+             
+        volume = dicom_data["pixel_array"] # 3D numpy array
         
-        # Step 2: Find relevant slices
-        logger.info("Step 2: Finding relevant slices...")
-        slices_indices = slice_finder.find_slices(dicom_data)
+        # 3. Run Detector
+        logger.info("Running TMJ Detector...")
+        detection_result = None
         
-        # Extract slice images (base64 for frontend)
-        # Note: slice_finder returns indices. We need to extract actual images to base64 if we want to return them?
-        # Or Frontend fetches them separately?
-        # Assuming Frontend needs them now for MVP.
-        slices_data = SlicesData(
-            orthogonal=[], # TODO: Convert pixel_array[idx] to base64
-            sagittal=[],
-            frontal=[]
-        )
-        
-        # Step 3: Run segmentation
-        logger.info("Step 3: Running segmentation...")
-        if segmentation_model and segmentation_model.is_loaded():
-            masks = segmentation_model.segment(dicom_data, slices_indices)
+        if detector_service and detector_service.is_loaded():
+            detection_result = detector_service.detect(volume)
         else:
-            logger.warning("Model not loaded, using dummy masks")
-            masks = {
-                "orthogonal": [],
-                "sagittal": [],
-                "frontal": []
-            }
-        
-        masks_data = MasksData(
-            orthogonal=masks.get("orthogonal"),
-            sagittal=masks.get("sagittal"),
-            frontal=masks.get("frontal")
+            logger.warning("Detector not loaded, cannot process")
+            return ProcessResponse(
+                task_id=task_id, 
+                status="failed", 
+                error_message="Model not loaded"
+            )
+            
+        if detection_result is None:
+             return ProcessResponse(
+                task_id=task_id, 
+                status="failed", 
+                error_message="Detection failed"
+            )
+
+        # 4. Return Result
+        tmj_result = TMJResult(
+            left=BoundingBox(
+                center=detection_result["left"]["center"],
+                bbox=detection_result["left"]["bbox"]
+            ),
+            right=BoundingBox(
+                center=detection_result["right"]["center"],
+                bbox=detection_result["right"]["bbox"]
+            )
         )
         
-        # Step 4: Calculate geometric parameters
-        logger.info("Step 4: Calculating geometric parameters...")
-        params = geometry_calculator.calculate(dicom_data, masks, slices_indices)
-        
-        parameters = GeometricParameters(
-            fossa_height=params.get("fossa_height"),
-            head_height=params.get("head_height"),
-            width=params.get("width"),
-            additional_params=params.get("additional_params")
-        )
-        
-        # Step 5: Generate diagnosis
-        logger.info("Step 5: Generating diagnosis...")
-        diagnosis_result = diagnosis_engine.diagnose(params)
-        
-        diagnosis = DiagnosisData(
-            status=diagnosis_result.get("status", "unknown"),
-            confidence=diagnosis_result.get("confidence"),
-            recommendations=diagnosis_result.get("recommendations"),
-            disclaimer=diagnosis_result.get("disclaimer")
-        )
-        
-        logger.info(f"Task {request.task_id} completed successfully")
+        logger.info(f"Task {task_id} completed successfully")
         
         return ProcessResponse(
-            task_id=request.task_id,
+            task_id=task_id,
             status="completed",
-            slices=slices_data,
-            masks=masks_data,
-            parameters=parameters,
-            diagnosis=diagnosis
+            tmj=tmj_result,
+            volume_shape=list(volume.shape)  # [D, H, W]
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing task {task_id}: {str(e)}", exc_info=True)
+        return ProcessResponse(
+            task_id=task_id,
+            status="failed",
+            error_message=str(e)
         )
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error processing task {request.task_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+    finally:
+        # Cleanup temp dir
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+            logger.info(f"Cleaned up temp dir: {temp_dir}")
 
 
 if __name__ == "__main__":
