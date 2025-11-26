@@ -74,8 +74,20 @@ def load_detector(model_path: str, device: str = 'mps') -> Tuple[TMJDetector, in
     
     checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
     
-    # Get model config
-    model_type = 'small'  # Default from training
+    # Try to detect model type from config
+    model_type = 'large'  # Default to large
+    
+    model_path_obj = Path(model_path)
+    config_path = model_path_obj.parent / 'config.json'
+    
+    if config_path.exists():
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                model_type = config.get('model_type', 'large')
+                logger.info(f"Detected model type from config: {model_type}")
+        except Exception as e:
+            logger.warning(f"Could not read config: {e}, using default 'large'")
     
     # Create model
     model = get_detector_model(model_type=model_type)
