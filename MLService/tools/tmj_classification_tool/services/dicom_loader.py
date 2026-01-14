@@ -6,7 +6,7 @@ Scans patient directories and loads DICOM studies
 import sys
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import numpy as np
 import pydicom
 from datetime import datetime
@@ -20,6 +20,36 @@ if str(MLSERVICE_DIR) not in sys.path:
 from services.dicom_processor import DICOMProcessor
 
 logger = logging.getLogger(__name__)
+
+
+def convert_dicom_value(value: Any) -> Any:
+    """Convert PyDICOM values to JSON-serializable Python types"""
+    if value is None:
+        return None
+    
+    # Handle dict recursively
+    if isinstance(value, dict):
+        return {k: convert_dicom_value(v) for k, v in value.items()}
+    
+    # Handle PyDICOM MultiValue
+    if hasattr(value, '__iter__') and not isinstance(value, (str, bytes, dict)):
+        try:
+            return [convert_dicom_value(v) for v in value]
+        except:
+            return str(value)
+    
+    # Handle numpy types
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, (np.integer, np.floating)):
+        return value.item()
+    
+    # Handle standard types
+    if isinstance(value, (int, float, str, bool)):
+        return value
+    
+    # Convert to string as fallback
+    return str(value)
 
 
 class DICOMLoader:
@@ -129,9 +159,9 @@ class DICOMLoader:
                         try:
                             first_dcm = pydicom.dcmread(dcm_files[0], stop_before_pixels=True)
                             study_info['metadata'] = {
-                                'modality': getattr(first_dcm, 'Modality', 'Unknown'),
-                                'series_description': getattr(first_dcm, 'SeriesDescription', 'Unknown'),
-                                'manufacturer': getattr(first_dcm, 'Manufacturer', 'Unknown'),
+                                'modality': convert_dicom_value(getattr(first_dcm, 'Modality', 'Unknown')),
+                                'series_description': convert_dicom_value(getattr(first_dcm, 'SeriesDescription', 'Unknown')),
+                                'manufacturer': convert_dicom_value(getattr(first_dcm, 'Manufacturer', 'Unknown')),
                             }
                         except Exception as e:
                             logger.warning(f"Could not read DICOM metadata from {dcm_files[0]}: {e}")
@@ -191,12 +221,20 @@ class DICOMLoader:
             volume = dicom_data['pixel_array']
             self.volume_cache[study_key] = volume
             
+            # Convert PyDICOM values to JSON-serializable types
+            pixel_spacing = convert_dicom_value(dicom_data.get('pixel_spacing', [1.0, 1.0]))
+            slice_thickness = convert_dicom_value(dicom_data.get('slice_thickness', 1.0))
+            
+            # Ensure pixel_spacing is a list
+            if not isinstance(pixel_spacing, list):
+                pixel_spacing = [pixel_spacing, pixel_spacing]
+            
             # Create study info with volume metadata
             loaded_study_info = {
-                **study_info,
+                **convert_dicom_value(study_info),  # Convert all values in study_info
                 'volume_shape': list(volume.shape),
-                'pixel_spacing': dicom_data.get('pixel_spacing', [1.0, 1.0]),
-                'slice_thickness': dicom_data.get('slice_thickness', 1.0),
+                'pixel_spacing': pixel_spacing,
+                'slice_thickness': slice_thickness,
             }
             
             self.study_info_cache[study_key] = loaded_study_info
