@@ -12,7 +12,39 @@ fileprivate struct ResultsView: View {
     let result: AnalysisResult
 
     var body: some View {
-        GroupBox {
+        VStack(spacing: 16) {
+            if let diagnosis = result.diagnosis {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Diagnosis")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+
+                        Text(diagnosis.status)
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(diagnosis.status.lowercased().contains("normal") ? .green : .red)
+                    }
+
+                    Spacer()
+
+                    if let confidence = diagnosis.confidence {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Confidence")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+
+                            Text("\(Int(confidence * 100))%")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                        }
+                    }
+                }
+            }
+
             VStack(alignment: .leading, spacing: 15) {
                 Text("Detection Results")
                     .font(.headline)
@@ -28,10 +60,11 @@ fileprivate struct ResultsView: View {
 
                 Divider()
                 result.tmjLeft?.makeView(position: .left)
+                    .frame(maxWidth: .infinity)
                 Divider()
                 result.tmjRight?.makeView(position: .right)
+                    .frame(maxWidth: .infinity)
             }
-            .padding()
         }
     }
 }

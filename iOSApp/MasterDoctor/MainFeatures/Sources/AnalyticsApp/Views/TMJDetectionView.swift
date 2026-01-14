@@ -6,11 +6,12 @@ import FoundationInternal
 import CoreSwiftUI
 
 public struct TMJDetectionView: View {
-    @State private var selectedFiles: [URL] = []
+    @State private var selectedFiles: [URL] = [URL(fileURLWithPath: "123123")]
     @State private var selectedFolderURL: URL?
     @State private var analysisResult: AnalysisResult?
     @State private var statusMessage: String = "Select DICOM folder to start"
     @State private var isProcessing = false
+    @State private var progressValue: Double = 0.0
     @State private var showFilePicker = false
     @State private var showFileNames = false
     @State private var showDICOMViewer = false
@@ -112,32 +113,32 @@ public struct TMJDetectionView: View {
                     }
 
                     if isProcessing {
-                        ProgressView()
+                        ProgressView(value: progressValue, total: 100.0)
                             .progressViewStyle(.linear)
+                            .animation(.linear, value: progressValue)
                     }
                 } header: {
                     Label("Status", systemImage: "waveform.path.ecg")
                 }
 
-                // Analysis Results
-                analysisResult?.makeView()
+                Section {
+                    analysisResult?.makeView()
+                }
 
                 // Action Button
                 if selectedFiles.nilIfEmpty != nil && !isProcessing {
-                    Section {
-                        Button {
-                            Task {
-                                // TODO: Implement analysis
-                            }
-                        } label: {
-                            Label("Start TMJ Detection", systemImage: "brain")
-                                .frame(maxWidth: .infinity)
+                    Button {
+                        Task {
+                            await runMockAnalysis()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
+                    } label: {
+                        Label("Start TMJ Detection", systemImage: "brain")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(.init())
                 }
             }
             .toolbar {
@@ -179,6 +180,46 @@ public struct TMJDetectionView: View {
     }
     
     // MARK: - Methods
+    
+    private func runMockAnalysis() async {
+        isProcessing = true
+        progressValue = 0.0
+        withAnimation { analysisResult = nil }
+        
+        // Helper for smooth progress
+        func animateProgress(to target: Double, duration: Double) async {
+            let steps = 50
+            let stepDuration = UInt64(duration * 1_000_000_000 / Double(steps))
+            let increment = (target - progressValue) / Double(steps)
+            
+            for _ in 0..<steps {
+                progressValue += increment
+                try? await Task.sleep(nanoseconds: stepDuration)
+            }
+            progressValue = target
+        }
+        
+        // Simulate steps
+        statusMessage = "Preparing data..."
+        await animateProgress(to: 10.0, duration: 0.5)
+        
+        statusMessage = "Uploading to server..."
+        await animateProgress(to: 45.0, duration: 1.5)
+        
+        statusMessage = "Processing on GPU..."
+        await animateProgress(to: 95.0, duration: 2.5)
+        
+        statusMessage = "Finalizing..."
+        await animateProgress(to: 100.0, duration: 0.5)
+        
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        
+        withAnimation {
+            analysisResult = AnalysisResult.mock()
+            isProcessing = false
+            statusMessage = "Analysis Complete"
+        }
+    }
     
     private func loadAndShowDICOMViewer() async {
         guard let folderURL = selectedFolderURL else {
