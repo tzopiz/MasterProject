@@ -152,20 +152,21 @@ class DICOMLoader:
         
         Args:
             patient_id: Patient ID
-            study_id: Study ID
+            study_id: Study ID (full study_id from cache)
             
         Returns:
             Study info with volume loaded
         """
-        # Find study in cache
+        # Find study in cache by study_id only (it already contains patient_id)
         study_info = None
         for study in self.studies_cache:
-            if study['patient_id'] == patient_id and study['study_id'] == study_id:
+            if study['study_id'] == study_id:
                 study_info = study
                 break
         
         if not study_info:
-            logger.error(f"Study not found: {patient_id}/{study_id}")
+            logger.error(f"Study not found in cache: {study_id}")
+            logger.error(f"Available studies: {[s['study_id'] for s in self.studies_cache]}")
             return None
         
         study_path = Path(study_info['study_path'])
@@ -224,9 +225,9 @@ class DICOMLoader:
         if study_key in self.study_info_cache:
             return self.study_info_cache[study_key]
         
-        # Look in studies_cache
+        # Look in studies_cache by study_id only
         for study in self.studies_cache:
-            if study['patient_id'] == patient_id and study['study_id'] == study_id:
+            if study['study_id'] == study_id:
                 return study
         
         return None

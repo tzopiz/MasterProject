@@ -80,6 +80,14 @@
     <script>
         let studiesData = [];
 
+        // Load saved path on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedPath = localStorage.getItem('lastPatientsPath');
+            if (savedPath) {
+                document.getElementById('patientsDir').value = savedPath;
+            }
+        });
+
         async function scanPatients() {
             const patientsDir = document.getElementById('patientsDir').value;
             const statusDiv = document.getElementById('scanStatus');
@@ -88,6 +96,9 @@
                 statusDiv.innerHTML = '<span class="error">❌ Укажите путь к папке</span>';
                 return;
             }
+
+            // Save path to localStorage
+            localStorage.setItem('lastPatientsPath', patientsDir);
 
             statusDiv.innerHTML = '<span class="loading">⏳ Сканирование...</span>';
 
