@@ -364,10 +364,53 @@ async function saveAnnotation() {
  * Save and go to next study
  */
 async function saveAndNext() {
-    await saveAnnotation();
-    
-    // Wait a bit for user to see the success message
-    setTimeout(() => {
-        window.location.href = '/';
-    }, 1500);
+    // First save current annotation
+    if (!selectedTags.left || !selectedTags.right) {
+        alert('Выберите теги для обоих суставов');
+        return;
+    }
+
+    const statusDiv = document.getElementById('saveStatus');
+    statusDiv.innerHTML = '<span class="loading">⏳ Сохранение...</span>';
+
+    try {
+        // Save annotation
+        const saveResponse = await fetch('/api/annotate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                patient_id: currentPatientId,
+                study_id: currentStudyId,
+                left_joint_tag: selectedTags.left,
+                right_joint_tag: selectedTags.right
+            })
+        });
+
+        const saveData = await saveResponse.json();
+
+        if (!saveData.success) {
+            statusDiv.innerHTML = `<span class="error">❌ Ошибка: ${saveData.detail}</span>`;
+            return;
+        }
+
+        statusDiv.innerHTML = '<span class="success">✅ Сохранено! Загрузка следующего...</span>';
+
+        // Get next unannotated study
+        const nextResponse = await fetch('/api/next_unannotated');
+        const nextData = await nextResponse.json();
+
+        if (nextData.success && nextData.study) {
+            // Redirect to next study
+            const nextStudy = nextData.study;
+            window.location.href = `/annotate/${nextStudy.patient_id}/${nextStudy.study_id}`;
+        } else {
+            // No more studies to annotate
+            statusDiv.innerHTML = '<span class="success">✅ Все исследования размечены!</span>';
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<span class="error">❌ Ошибка: ${error.message}</span>`;
+    }
 }

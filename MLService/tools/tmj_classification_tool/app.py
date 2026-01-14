@@ -307,6 +307,37 @@ async def get_annotations() -> Dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/next_unannotated")
+async def get_next_unannotated() -> Dict:
+    """Get next unannotated study"""
+    try:
+        # Get all studies
+        studies = dicom_loader.get_studies()
+        
+        # Get annotated study IDs
+        annotations = annotation_manager.load_annotations()
+        annotated_ids = {ann['study_id'] for ann in annotations.get('annotations', [])}
+        
+        # Find first unannotated study
+        for study in studies:
+            if study['study_id'] not in annotated_ids:
+                return {
+                    "success": True,
+                    "study": study
+                }
+        
+        # No more unannotated studies
+        return {
+            "success": True,
+            "study": None,
+            "message": "All studies annotated"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting next unannotated study: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/add_tag")
 async def add_tag(request: AddTagRequest) -> Dict:
     """Add a new tag to available tags"""
