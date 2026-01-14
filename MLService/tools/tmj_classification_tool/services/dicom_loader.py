@@ -60,6 +60,29 @@ class DICOMLoader:
         self.studies_cache = []  # List of found studies
         self.volume_cache = {}   # Cache for loaded volumes {study_key: volume}
         self.study_info_cache = {}  # Cache for study metadata
+        self.last_patients_dir = None  # Store last scanned directory
+        self._load_last_scan_path()
+    
+    def _load_last_scan_path(self):
+        """Load and restore last scanned directory path"""
+        cache_file = Path(__file__).parent.parent / "data" / "last_scan_path.txt"
+        try:
+            if cache_file.exists():
+                self.last_patients_dir = cache_file.read_text().strip()
+                if self.last_patients_dir and Path(self.last_patients_dir).exists():
+                    logger.info(f"Restoring scan from last path: {self.last_patients_dir}")
+                    self.scan_studies(Path(self.last_patients_dir))
+        except Exception as e:
+            logger.warning(f"Could not restore last scan: {e}")
+    
+    def _save_last_scan_path(self, patients_dir: Path):
+        """Save last scanned directory path"""
+        cache_file = Path(__file__).parent.parent / "data" / "last_scan_path.txt"
+        try:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(str(patients_dir))
+        except Exception as e:
+            logger.warning(f"Could not save last scan path: {e}")
     
     def scan_studies(self, patients_dir: Path) -> List[Dict]:
         """
@@ -81,6 +104,10 @@ class DICOMLoader:
             return []
         
         logger.info(f"Scanning patients directory: {patients_dir}")
+        
+        # Save this path for future restarts
+        self._save_last_scan_path(patients_dir)
+        self.last_patients_dir = str(patients_dir)
         
         # Iterate through patient folders
         for patient_folder in patients_dir.iterdir():
@@ -175,6 +202,10 @@ class DICOMLoader:
     def get_cached_studies(self) -> List[Dict]:
         """Get list of studies from last scan"""
         return self.studies_cache
+    
+    def get_studies(self) -> List[Dict]:
+        """Alias for get_cached_studies() for backward compatibility"""
+        return self.get_cached_studies()
     
     def load_study(self, patient_id: str, study_id: str) -> Optional[Dict]:
         """
