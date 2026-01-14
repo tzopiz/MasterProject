@@ -204,6 +204,19 @@ class DICOMLoader:
             logger.info(f"Study loaded: {volume.shape}")
             return loaded_study_info
         
+        except RuntimeError as e:
+            error_msg = str(e)
+            if "Unable to decompress" in error_msg and "missing dependencies" in error_msg:
+                logger.error(f"DICOM decompression error: {e}")
+                logger.error("Please install DICOM decompression libraries:")
+                logger.error("  pip install pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg")
+                return {
+                    'error': 'dicom_decompression',
+                    'message': 'DICOM files use JPEG compression. Please install decompression libraries.',
+                    'solution': 'Run: pip install pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg'
+                }
+            logger.error(f"Error loading study {study_id}: {e}", exc_info=True)
+            return None
         except Exception as e:
             logger.error(f"Error loading study {study_id}: {e}", exc_info=True)
             return None

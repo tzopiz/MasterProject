@@ -215,11 +215,21 @@ async def get_study(patient_id: str, study_id: str) -> Dict:
         if not study_info:
             raise HTTPException(status_code=404, detail="Study not found")
         
+        # Check if it's a decompression error
+        if isinstance(study_info, dict) and 'error' in study_info:
+            if study_info['error'] == 'dicom_decompression':
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"{study_info['message']} {study_info['solution']}"
+                )
+        
         return {
             "success": True,
             "study": study_info
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error loading study: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
