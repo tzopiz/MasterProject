@@ -132,6 +132,13 @@
                     <button onclick="saveAnnotation()" class="btn btn-primary btn-large" id="saveBtn">
                         💾 Сохранить
                     </button>
+                </div>
+
+                <!-- Navigation Actions -->
+                <div class="save-actions" style="margin-top: 10px;">
+                    <button onclick="goToPrevious()" class="btn btn-secondary btn-large">
+                        ← Назад
+                    </button>
                     <button onclick="goToNext()" class="btn btn-success btn-large">
                         → Далее
                     </button>
@@ -146,7 +153,8 @@
                         <li><kbd>←</kbd> <kbd>→</kbd> - Навигация по срезам</li>
                         <li><kbd>1-9</kbd> - Быстрый выбор тега</li>
                         <li><kbd>Ctrl+S</kbd> - Сохранить</li>
-                        <li><kbd>Ctrl+Enter</kbd> - Далее</li>
+                        <li><kbd>Ctrl+←</kbd> - Назад</li>
+                        <li><kbd>Ctrl+→</kbd> или <kbd>Ctrl+Enter</kbd> - Далее</li>
                     </ul>
                 </div>
             </div>

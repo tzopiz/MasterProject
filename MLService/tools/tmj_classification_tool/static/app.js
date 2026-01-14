@@ -170,8 +170,8 @@ function setupEventListeners() {
  */
 function setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
-        // Arrow keys for navigation
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // Arrow keys for navigation (without Ctrl - for slice navigation)
+        if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.ctrlKey) {
             e.preventDefault();
             const delta = e.key === 'ArrowRight' ? 1 : -1;
             
@@ -183,13 +183,24 @@ function setupKeyboardShortcuts() {
             loadSlice('axial', newValue);
         }
 
+        // Ctrl+Arrow keys for study navigation
+        if (e.ctrlKey && e.key === 'ArrowRight') {
+            e.preventDefault();
+            goToNext();
+        }
+
+        if (e.ctrlKey && e.key === 'ArrowLeft') {
+            e.preventDefault();
+            goToPrevious();
+        }
+
         // Ctrl+S to save
         if (e.ctrlKey && e.key === 's') {
             e.preventDefault();
             saveAnnotation();
         }
 
-        // Ctrl+Enter to go to next
+        // Ctrl+Enter to go to next (alternative)
         if (e.ctrlKey && e.key === 'Enter') {
             e.preventDefault();
             goToNext();
@@ -403,6 +414,34 @@ async function goToNext() {
             // Redirect to next study
             const nextStudy = nextData.study;
             window.location.href = `/annotate/${nextStudy.patient_id}/${nextStudy.study_id}`;
+        } else {
+            // No more studies
+            statusDiv.innerHTML = '<span class="error">❌ Нет доступных исследований</span>';
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<span class="error">❌ Ошибка: ${error.message}</span>`;
+    }
+}
+
+/**
+ * Go to previous study
+ */
+async function goToPrevious() {
+    const statusDiv = document.getElementById('saveStatus');
+    statusDiv.innerHTML = '<span class="loading">⏳ Загрузка предыдущего...</span>';
+
+    try {
+        // Get previous study before current one
+        const prevResponse = await fetch(`/api/previous_study/${currentStudyId}`);
+        const prevData = await prevResponse.json();
+
+        if (prevData.success && prevData.study) {
+            // Redirect to previous study
+            const prevStudy = prevData.study;
+            window.location.href = `/annotate/${prevStudy.patient_id}/${prevStudy.study_id}`;
         } else {
             // No more studies
             statusDiv.innerHTML = '<span class="error">❌ Нет доступных исследований</span>';
