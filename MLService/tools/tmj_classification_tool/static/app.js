@@ -361,15 +361,15 @@ async function saveAnnotation() {
 }
 
 /**
- * Go to next unannotated study
+ * Go to next study
  */
 async function goToNext() {
     const statusDiv = document.getElementById('saveStatus');
     statusDiv.innerHTML = '<span class="loading">⏳ Загрузка следующего...</span>';
 
     try {
-        // Get next unannotated study
-        const nextResponse = await fetch('/api/next_unannotated');
+        // Get next study after current one
+        const nextResponse = await fetch(`/api/next_study/${currentStudyId}`);
         const nextData = await nextResponse.json();
 
         if (nextData.success && nextData.study) {
@@ -377,8 +377,8 @@ async function goToNext() {
             const nextStudy = nextData.study;
             window.location.href = `/annotate/${nextStudy.patient_id}/${nextStudy.study_id}`;
         } else {
-            // No more studies to annotate
-            statusDiv.innerHTML = '<span class="success">✅ Все исследования размечены!</span>';
+            // No more studies
+            statusDiv.innerHTML = '<span class="error">❌ Нет доступных исследований</span>';
             setTimeout(() => {
                 window.location.href = '/';
             }, 2000);

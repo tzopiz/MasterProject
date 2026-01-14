@@ -346,6 +346,43 @@ async def get_next_unannotated() -> Dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/next_study/{current_study_id}")
+async def get_next_study(current_study_id: str) -> Dict:
+    """Get next study after current one (regardless of annotation status)"""
+    try:
+        # Get all studies
+        studies = dicom_loader.get_studies()
+        
+        if not studies:
+            return {
+                "success": True,
+                "study": None,
+                "message": "No studies available"
+            }
+        
+        # Find current study index
+        current_index = None
+        for i, study in enumerate(studies):
+            if study['study_id'] == current_study_id:
+                current_index = i
+                break
+        
+        # If current study not found or is last, return first study (loop)
+        if current_index is None or current_index >= len(studies) - 1:
+            next_study = studies[0]
+        else:
+            next_study = studies[current_index + 1]
+        
+        return {
+            "success": True,
+            "study": next_study
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting next study: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/add_tag")
 async def add_tag(request: AddTagRequest) -> Dict:
     """Add a new tag to available tags"""
