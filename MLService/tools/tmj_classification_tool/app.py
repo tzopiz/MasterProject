@@ -15,13 +15,53 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-# Add parent directories to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Setup paths
+TOOL_DIR = Path(__file__).parent
+MLSERVICE_DIR = TOOL_DIR.parent.parent
 
-from services.file_cleaner import FileCleaner
-from services.dicom_loader import DICOMLoader
-from services.annotation_manager import AnnotationManager
-from utils.slice_extractor import SliceExtractor
+# Add MLService first, then tool directory
+sys.path.insert(0, str(MLSERVICE_DIR))
+sys.path.insert(1, str(TOOL_DIR))
+
+# Import tool services with explicit path to avoid conflicts
+import importlib
+import importlib.util
+
+# Import FileCleaner from tool's services
+spec = importlib.util.spec_from_file_location(
+    "tool_file_cleaner", 
+    TOOL_DIR / "services" / "file_cleaner.py"
+)
+file_cleaner_mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(file_cleaner_mod)
+FileCleaner = file_cleaner_mod.FileCleaner
+
+# Import DICOMLoader from tool's services  
+spec = importlib.util.spec_from_file_location(
+    "tool_dicom_loader",
+    TOOL_DIR / "services" / "dicom_loader.py"
+)
+dicom_loader_mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(dicom_loader_mod)
+DICOMLoader = dicom_loader_mod.DICOMLoader
+
+# Import AnnotationManager from tool's services
+spec = importlib.util.spec_from_file_location(
+    "tool_annotation_manager",
+    TOOL_DIR / "services" / "annotation_manager.py"
+)
+annotation_manager_mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(annotation_manager_mod)
+AnnotationManager = annotation_manager_mod.AnnotationManager
+
+# Import SliceExtractor from tool's utils
+spec = importlib.util.spec_from_file_location(
+    "tool_slice_extractor",
+    TOOL_DIR / "utils" / "slice_extractor.py"
+)
+slice_extractor_mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(slice_extractor_mod)
+SliceExtractor = slice_extractor_mod.SliceExtractor
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +78,6 @@ app = FastAPI(
 )
 
 # Mount static files and templates
-TOOL_DIR = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=str(TOOL_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(TOOL_DIR / "templates"))
 

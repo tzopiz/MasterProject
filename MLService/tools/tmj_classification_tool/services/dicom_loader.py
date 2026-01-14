@@ -11,8 +11,12 @@ import numpy as np
 import pydicom
 from datetime import datetime
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Add MLService directory to path for DICOMProcessor import
+MLSERVICE_DIR = Path(__file__).parent.parent.parent
+if str(MLSERVICE_DIR) not in sys.path:
+    sys.path.insert(0, str(MLSERVICE_DIR))
+
+# Import DICOMProcessor from MLService/services
 from services.dicom_processor import DICOMProcessor
 
 logger = logging.getLogger(__name__)
