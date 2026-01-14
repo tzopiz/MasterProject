@@ -126,6 +126,14 @@ async def annotate_page(request: Request, patient_id: str, study_id: str):
     })
 
 
+@app.get("/results", response_class=HTMLResponse)
+async def results_page(request: Request):
+    """Results page showing all annotations"""
+    return templates.TemplateResponse("results.html", {
+        "request": request
+    })
+
+
 @app.post("/api/scan_patients")
 async def scan_patients(request: ScanRequest) -> Dict:
     """Scan patients directory and find all DICOM studies"""

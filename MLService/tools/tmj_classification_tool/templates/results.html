@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты разметки - TMJ Classification</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .results-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .results-table {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .table-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-header h2 {
+            margin: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: rgba(0, 229, 255, 0.1);
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        tbody tr {
+            transition: background-color 0.2s;
+        }
+
+        tbody tr:hover {
+            background: rgba(0, 229, 255, 0.05);
+        }
+
+        .tag-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 500;
+            background: rgba(0, 229, 255, 0.2);
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        .tag-normal { 
+            background: rgba(76, 175, 80, 0.2);
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        .tag-osteoarthritis { 
+            background: rgba(255, 152, 0, 0.2);
+            border-color: #FF9800;
+            color: #FF9800;
+        }
+
+        .tag-dislocation { 
+            background: rgba(244, 67, 54, 0.2);
+            border-color: #F44336;
+            color: #F44336;
+        }
+
+        .tag-ankylosis { 
+            background: rgba(156, 39, 176, 0.2);
+            border-color: #9C27B0;
+            color: #9C27B0;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-section {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-color);
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .no-results-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .tag-distribution {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .tag-count {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--surface-color);
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+
+        .tag-count-value {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1>🦷 TMJ Classification Tool - Результаты</h1>
+            <div class="nav-actions">
+                <a href="/" class="btn btn-secondary">← На главную</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="results-container">
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Всего размечено</div>
+                <div class="stat-value" id="totalAnnotated">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Доступно тегов</div>
+                <div class="stat-value" id="totalTags">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Пациентов</div>
+                <div class="stat-value" id="totalPatients">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Последняя разметка</div>
+                <div class="stat-value" style="font-size: 1.2em;" id="lastAnnotation">-</div>
+            </div>
+        </div>
+
+        <!-- Tag Distribution -->
+        <div class="results-table">
+            <div class="table-header">
+                <h2>📊 Распределение тегов</h2>
+            </div>
+            <div style="padding: 20px;">
+                <h3 style="margin-top: 0;">Левый сустав:</h3>
+                <div class="tag-distribution" id="leftTagDistribution"></div>
+                
+                <h3 style="margin-top: 30px;">Правый сустав:</h3>
+                <div class="tag-distribution" id="rightTagDistribution"></div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-section">
+            <h3 style="margin-top: 0;">🔍 Фильтры</h3>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label>Пациент:</label>
+                    <input type="text" id="filterPatient" placeholder="Имя или ID">
+                </div>
+                <div class="filter-group">
+                    <label>Левый сустав:</label>
+                    <select id="filterLeft">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Правый сустав:</label>
+                    <select id="filterRight">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-secondary" onclick="clearFilters()" style="width: 100%;">
+                        Сбросить фильтры
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="results-table">
+            <div class="table-header">
+                <h2>📋 Список разметок</h2>
+                <div class="export-buttons">
+                    <button class="btn btn-secondary" onclick="exportToJSON()">
+                        💾 Экспорт JSON
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportToCSV()">
+                        📊 Экспорт CSV
+                    </button>
+                </div>
+            </div>
+            <div id="tableContainer">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Пациент</th>
+                            <th>ID исследования</th>
+                            <th>Дата исследования</th>
+                            <th>Левый сустав</th>
+                            <th>Правый сустав</th>
+                            <th>Дата разметки</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                        <!-- Filled by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allAnnotations = [];
+        let filteredAnnotations = [];
+        let availableTags = [];
+
+        // Load results on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadResults();
+        });
+
+        async function loadResults() {
+            try {
+                const response = await fetch('/api/annotations');
+                const data = await response.json();
+
+                if (data.success) {
+                    allAnnotations = data.annotations.annotations || [];
+                    availableTags = data.annotations.available_tags || [];
+                    
+                    updateStatistics();
+                    updateTagDistribution();
+                    populateFilters();
+                    filteredAnnotations = [...allAnnotations];
+                    renderTable();
+                } else {
+                    console.error('Error loading results:', data.detail);
+                }
+            } catch (error) {
+                console.error('Error loading results:', error);
+            }
+        }
+
+        function updateStatistics() {
+            const uniquePatients = new Set(allAnnotations.map(a => a.patient_id)).size;
+            const lastAnnotation = allAnnotations.length > 0 
+                ? new Date(allAnnotations[allAnnotations.length - 1].annotated_at).toLocaleDateString('ru-RU')
+                : '-';
+
+            document.getElementById('totalAnnotated').textContent = allAnnotations.length;
+            document.getElementById('totalTags').textContent = availableTags.length;
+            document.getElementById('totalPatients').textContent = uniquePatients;
+            document.getElementById('lastAnnotation').textContent = lastAnnotation;
+        }
+
+        function updateTagDistribution() {
+            const leftCounts = {};
+            const rightCounts = {};
+
+            allAnnotations.forEach(ann => {
+                leftCounts[ann.left_joint_tag] = (leftCounts[ann.left_joint_tag] || 0) + 1;
+                rightCounts[ann.right_joint_tag] = (rightCounts[ann.right_joint_tag] || 0) + 1;
+            });
+
+            const leftContainer = document.getElementById('leftTagDistribution');
+            const rightContainer = document.getElementById('rightTagDistribution');
+
+            leftContainer.innerHTML = Object.entries(leftCounts)
+                .map(([tag, count]) => `
+                    <div class="tag-count">
+                        <span class="tag-badge tag-${tag.toLowerCase()}">${tag}</span>
+                        <span class="tag-count-value">${count}</span>
+                    </div>
+                `).join('');
+
+            rightContainer.innerHTML = Object.entries(rightCounts)
+                .map(([tag, count]) => `
+                    <div class="tag-count">
+                        <span class="tag-badge tag-${tag.toLowerCase()}">${tag}</span>
+                        <span class="tag-count-value">${count}</span>
+                    </div>
+                `).join('');
+        }
+
+        function populateFilters() {
+            const leftSelect = document.getElementById('filterLeft');
+            const rightSelect = document.getElementById('filterRight');
+
+            availableTags.forEach(tag => {
+                leftSelect.innerHTML += `<option value="${tag}">${tag}</option>`;
+                rightSelect.innerHTML += `<option value="${tag}">${tag}</option>`;
+            });
+
+            // Add filter event listeners
+            document.getElementById('filterPatient').addEventListener('input', applyFilters);
+            document.getElementById('filterLeft').addEventListener('change', applyFilters);
+            document.getElementById('filterRight').addEventListener('change', applyFilters);
+        }
+
+        function applyFilters() {
+            const patientFilter = document.getElementById('filterPatient').value.toLowerCase();
+            const leftFilter = document.getElementById('filterLeft').value;
+            const rightFilter = document.getElementById('filterRight').value;
+
+            filteredAnnotations = allAnnotations.filter(ann => {
+                const matchPatient = !patientFilter || 
+                    ann.patient_name.toLowerCase().includes(patientFilter) ||
+                    ann.patient_id.toLowerCase().includes(patientFilter);
+                
+                const matchLeft = !leftFilter || ann.left_joint_tag === leftFilter;
+                const matchRight = !rightFilter || ann.right_joint_tag === rightFilter;
+
+                return matchPatient && matchLeft && matchRight;
+            });
+
+            renderTable();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterPatient').value = '';
+            document.getElementById('filterLeft').value = '';
+            document.getElementById('filterRight').value = '';
+            applyFilters();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('resultsBody');
+            
+            if (filteredAnnotations.length === 0) {
+                document.getElementById('tableContainer').innerHTML = `
+                    <div class="no-results">
+                        <div class="no-results-icon">📭</div>
+                        <h3>Нет результатов</h3>
+                        <p>Попробуйте изменить фильтры или начните разметку</p>
+                    </div>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filteredAnnotations.map((ann, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${ann.patient_name}</td>
+                    <td><code>${ann.study_id}</code></td>
+                    <td>${ann.study_date || '-'}</td>
+                    <td><span class="tag-badge tag-${ann.left_joint_tag.toLowerCase()}">${ann.left_joint_tag}</span></td>
+                    <td><span class="tag-badge tag-${ann.right_joint_tag.toLowerCase()}">${ann.right_joint_tag}</span></td>
+                    <td>${new Date(ann.annotated_at).toLocaleString('ru-RU')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function exportToJSON() {
+            const dataStr = JSON.stringify({
+                exported_at: new Date().toISOString(),
+                total_annotations: filteredAnnotations.length,
+                annotations: filteredAnnotations
+            }, null, 2);
+            
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tmj_annotations_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportToCSV() {
+            const headers = ['№', 'Пациент', 'ID пациента', 'ID исследования', 'Дата исследования', 'Левый сустав', 'Правый сустав', 'Дата разметки'];
+            const rows = filteredAnnotations.map((ann, index) => [
+                index + 1,
+                ann.patient_name,
+                ann.patient_id,
+                ann.study_id,
+                ann.study_date || '-',
+                ann.left_joint_tag,
+                ann.right_joint_tag,
+                new Date(ann.annotated_at).toLocaleString('ru-RU')
+            ]);
+
+            const csv = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tmj_annotations_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

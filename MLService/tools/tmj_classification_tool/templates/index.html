@@ -11,6 +11,11 @@
         <header>
             <h1>🦷 TMJ Classification Tool</h1>
             <p class="subtitle">Инструмент для разметки DICOM исследований ВНЧС</p>
+            <div style="margin-top: 15px;">
+                <a href="/results" class="btn btn-secondary" style="display: inline-block; text-decoration: none;">
+                    📊 Посмотреть результаты
+                </a>
+            </div>
         </header>
 
         <main>
@@ -80,11 +85,13 @@
     <script>
         let studiesData = [];
 
-        // Load saved path on page load
-        window.addEventListener('DOMContentLoaded', () => {
+        // Load saved path on page load and auto-scan if available
+        window.addEventListener('DOMContentLoaded', async () => {
             const savedPath = localStorage.getItem('lastPatientsPath');
             if (savedPath) {
                 document.getElementById('patientsDir').value = savedPath;
+                // Auto-scan on page load
+                await scanPatients();
             }
         });
 
