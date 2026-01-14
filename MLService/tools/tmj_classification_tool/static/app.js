@@ -37,8 +37,11 @@ async function initializeViewer(patientId, studyId) {
     canvases.sagittal = document.getElementById('sagittalCanvas').getContext('2d');
     canvases.coronal = document.getElementById('coronalCanvas').getContext('2d');
 
-    // Load tags
+    // Load tags first
     await loadTags();
+
+    // Then load existing annotation if present (after tags are loaded)
+    await loadExistingAnnotation(studyId);
 
     // Load study
     await loadStudy(patientId, studyId);
@@ -221,6 +224,30 @@ async function loadTags() {
         }
     } catch (error) {
         console.error('Error loading tags:', error);
+    }
+}
+
+/**
+ * Load existing annotation for current study
+ */
+async function loadExistingAnnotation(studyId) {
+    try {
+        const response = await fetch(`/api/annotation/${studyId}`);
+        const data = await response.json();
+
+        if (data.success && data.annotation) {
+            const annotation = data.annotation;
+            
+            // Pre-select tags (tags should already be rendered at this point)
+            if (annotation.left_joint_tag) {
+                selectTag('left', annotation.left_joint_tag);
+            }
+            if (annotation.right_joint_tag) {
+                selectTag('right', annotation.right_joint_tag);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading existing annotation:', error);
     }
 }
 

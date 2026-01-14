@@ -315,6 +315,31 @@ async def get_annotations() -> Dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/annotation/{study_id}")
+async def get_annotation(study_id: str) -> Dict:
+    """Get annotation for a specific study"""
+    try:
+        annotations = annotation_manager.load_annotations()
+        
+        # Find annotation for this study
+        for ann in annotations.get('annotations', []):
+            if ann['study_id'] == study_id:
+                return {
+                    "success": True,
+                    "annotation": ann
+                }
+        
+        # No annotation found
+        return {
+            "success": True,
+            "annotation": None
+        }
+    
+    except Exception as e:
+        logger.error(f"Error loading annotation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/next_unannotated")
 async def get_next_unannotated() -> Dict:
     """Get next unannotated study"""
