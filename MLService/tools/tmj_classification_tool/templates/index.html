@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMJ Classification Tool</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🦷 TMJ Classification Tool</h1>
+            <p class="subtitle">Инструмент для разметки DICOM исследований ВНЧС</p>
+        </header>
+
+        <main>
+            <!-- Step 1: Select Directory -->
+            <section class="card">
+                <h2>Шаг 1: Выберите папку с пациентами</h2>
+                <div class="form-group">
+                    <label for="patientsDir">Путь к папке:</label>
+                    <input 
+                        type="text" 
+                        id="patientsDir" 
+                        placeholder="/path/to/patients/folder"
+                        value="/Users/tzopiz/Developer/MasterProject"
+                    >
+                    <button onclick="scanPatients()" class="btn btn-primary">
+                        Сканировать
+                    </button>
+                </div>
+                <div id="scanStatus" class="status-message"></div>
+            </section>
+
+            <!-- Step 2: Clean Files (Optional) -->
+            <section class="card">
+                <h2>Шаг 2: Очистка файлов (опционально)</h2>
+                <p class="info-text">
+                    Удалить мусорные файлы (.exe, .dll, .jpg и т.д.) из папок пациентов
+                </p>
+                <div class="button-group">
+                    <button onclick="cleanFiles(true)" class="btn btn-secondary">
+                        Предпросмотр (Dry Run)
+                    </button>
+                    <button onclick="cleanFiles(false)" class="btn btn-warning">
+                        Очистить файлы
+                    </button>
+                </div>
+                <div id="cleanStatus" class="status-message"></div>
+            </section>
+
+            <!-- Step 3: Studies List -->
+            <section class="card">
+                <h2>Шаг 3: Список исследований</h2>
+                <div class="studies-header">
+                    <div class="stats" id="studiesStats">
+                        <span>Всего: <strong id="totalCount">0</strong></span>
+                        <span>Размечено: <strong id="annotatedCount">0</strong></span>
+                        <span>Осталось: <strong id="remainingCount">0</strong></span>
+                    </div>
+                    <div class="filter-controls">
+                        <label>
+                            <input type="checkbox" id="hideAnnotated" onchange="filterStudies()">
+                            Скрыть размеченные
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="studiesList" class="studies-list">
+                    <p class="placeholder">Нажмите "Сканировать" чтобы загрузить список исследований</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>TMJ Classification Tool v1.0 | Made with ❤️ for dental research</p>
+        </footer>
+    </div>
+
+    <script>
+        let studiesData = [];
+
+        async function scanPatients() {
+            const patientsDir = document.getElementById('patientsDir').value;
+            const statusDiv = document.getElementById('scanStatus');
+            
+            if (!patientsDir) {
+                statusDiv.innerHTML = '<span class="error">❌ Укажите путь к папке</span>';
+                return;
+            }
+
+            statusDiv.innerHTML = '<span class="loading">⏳ Сканирование...</span>';
+
+            try {
+                const response = await fetch('/api/scan_patients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({patients_dir: patientsDir})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    studiesData = data.studies;
+                    statusDiv.innerHTML = `<span class="success">✅ Найдено ${data.studies_count} исследований (${data.annotated_count} размечено)</span>`;
+                    renderStudies();
+                    updateStats();
+                } else {
+                    statusDiv.innerHTML = `<span class="error">❌ Ошибка: ${data.detail}</span>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="error">❌ Ошибка: ${error.message}</span>`;
+            }
+        }
+
+        async function cleanFiles(dryRun) {
+            const patientsDir = document.getElementById('patientsDir').value;
+            const statusDiv = document.getElementById('cleanStatus');
+            
+            if (!patientsDir) {
+                statusDiv.innerHTML = '<span class="error">❌ Укажите путь к папке</span>';
+                return;
+            }
+
+            const confirmed = dryRun || confirm('Вы уверены, что хотите удалить файлы? Это действие нельзя отменить!');
+            if (!confirmed) return;
+
+            statusDiv.innerHTML = `<span class="loading">⏳ ${dryRun ? 'Анализ' : 'Очистка'}...</span>`;
+
+            try {
+                const response = await fetch('/api/clean_files', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({patients_dir: patientsDir, dry_run: dryRun})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const action = dryRun ? 'будет удалено' : 'удалено';
+                    statusDiv.innerHTML = `<span class="success">✅ ${action} ${data.files_removed} файлов из ${data.files_scanned} проверенных</span>`;
+                } else {
+                    statusDiv.innerHTML = `<span class="error">❌ Ошибка: ${data.detail}</span>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="error">❌ Ошибка: ${error.message}</span>`;
+            }
+        }
+
+        function filterStudies() {
+            renderStudies();
+        }
+
+        function renderStudies() {
+            const listDiv = document.getElementById('studiesList');
+            const hideAnnotated = document.getElementById('hideAnnotated').checked;
+
+            const filteredStudies = hideAnnotated 
+                ? studiesData.filter(s => !s.is_annotated)
+                : studiesData;
+
+            if (filteredStudies.length === 0) {
+                listDiv.innerHTML = '<p class="placeholder">Нет исследований для отображения</p>';
+                return;
+            }
+
+            let html = '<table class="studies-table"><thead><tr>';
+            html += '<th>Пациент</th>';
+            html += '<th>Дата</th>';
+            html += '<th>Файлов</th>';
+            html += '<th>Модальность</th>';
+            html += '<th>Статус</th>';
+            html += '<th>Действие</th>';
+            html += '</tr></thead><tbody>';
+
+            filteredStudies.forEach(study => {
+                const status = study.is_annotated 
+                    ? `<span class="badge badge-success">✓ Размечено</span>` 
+                    : `<span class="badge badge-pending">○ Ожидает</span>`;
+                
+                const tags = study.is_annotated 
+                    ? `<div class="tags"><span class="tag">L: ${study.left_joint_tag}</span><span class="tag">R: ${study.right_joint_tag}</span></div>`
+                    : '';
+
+                html += `<tr class="${study.is_annotated ? 'annotated' : ''}">`;
+                html += `<td><strong>${study.patient_name}</strong><br><small>${study.patient_id}</small></td>`;
+                html += `<td>${study.study_date}</td>`;
+                html += `<td>${study.num_files}</td>`;
+                html += `<td>${study.metadata?.modality || 'N/A'}</td>`;
+                html += `<td>${status}${tags}</td>`;
+                html += `<td><button class="btn btn-small" onclick="openStudy('${study.patient_id}', '${study.study_id}')">Открыть</button></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            listDiv.innerHTML = html;
+        }
+
+        function updateStats() {
+            const total = studiesData.length;
+            const annotated = studiesData.filter(s => s.is_annotated).length;
+            const remaining = total - annotated;
+
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('annotatedCount').textContent = annotated;
+            document.getElementById('remainingCount').textContent = remaining;
+        }
+
+        function openStudy(patientId, studyId) {
+            window.location.href = `/annotate/${patientId}/${studyId}`;
+        }
+    </script>
+</body>
+</html>
