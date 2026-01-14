@@ -62,6 +62,8 @@ class SliceExtractor:
                 # Sagittal (side view): volume[:, :, x]
                 if 0 <= index < volume.shape[2]:
                     slice_2d = volume[:, :, index]
+                    # Flip vertically to correct orientation
+                    slice_2d = np.flipud(slice_2d)
                 else:
                     logger.error(f"Sagittal index {index} out of range (0-{volume.shape[2]-1})")
                     return None
@@ -70,6 +72,8 @@ class SliceExtractor:
                 # Coronal (frontal view): volume[:, y, :]
                 if 0 <= index < volume.shape[1]:
                     slice_2d = volume[:, index, :]
+                    # Flip vertically to correct orientation
+                    slice_2d = np.flipud(slice_2d)
                 else:
                     logger.error(f"Coronal index {index} out of range (0-{volume.shape[1]-1})")
                     return None
