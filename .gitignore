@@ -85,3 +85,13 @@ MLService/validation/reports/
 # Keep README files in experiments
 !MLService/experiments/**/README.md
 
+# Personal / generated exports (sources: .md, .html, scripts in repo root)
+/diplom.pdf
+/presentation.pdf
+/presentation.pptx
+/тезисы_правила.pdf
+*.pages
+/план_доклада_конференция.docx
+/тезисы.docx
+/доклад_конференция.docx
+
