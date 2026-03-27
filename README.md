@@ -2,13 +2,15 @@
 
 Магистерский проект: iOS приложение с ИИ для анализа височно-нижнечелюстного сустава (ВНЧС) по снимкам КЛКТ.
 
+**Документация:** [docs/README.md](docs/README.md) (оглавление) · для ИИ-агентов: [AGENTS.md](AGENTS.md) · контекст: [docs/project-context.md](docs/project-context.md)
+
 ## Архитектура
 
 Проект состоит из трех компонентов:
 
 1. **Backend** (Swift Vapor) - API для управления задачами и данными
 2. **MLService** (Python FastAPI) - ML инференс и обработка DICOM
-3. **iOS App** (Swift/SwiftUI) - клиентское приложение (в разработке)
+3. **iOS App** (Swift/SwiftUI) — клиент (модульная структура, см. [iOSApp/ModularAppArchitecture.md](iOSApp/ModularAppArchitecture.md))
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────────┐
@@ -38,10 +40,10 @@
 - pydicom - обработка DICOM
 - scikit-image, OpenCV - обработка изображений
 
-### iOS App (будущее)
+### iOS App
 - Swift 5.9+
-- SwiftUI - UI фреймворк
-- URLSession - сетевые запросы
+- SwiftUI
+- Сетевой слой (например `AnalysisEndpoint`) — базовый URL API настраивается в коде клиента
 
 ## Быстрый старт
 
@@ -87,31 +89,29 @@ curl http://localhost:8001/health
 
 ## API
 
-### Backend Endpoints
+Актуальные контракты смотрите в коде (`Backend/Sources/App/Controllers/`, `MLService/app.py`). Кратко:
 
-- `GET /health` - health check
-- `POST /api/dicom/upload` - загрузка DICOM файла
-- `GET /api/analysis/{taskId}` - получить результаты анализа
-- `GET /api/analysis/{taskId}/status` - статус задачи
+### Backend
 
-### ML Service Endpoints
+- `GET /health` — health check
+- `POST /api/analysis` — загрузка **серии** DICOM (`multipart/form-data`, поле с файлами согласно `SeriesUploadRequest` в `AnalysisController.swift`)
+- `GET /api/analysis/{taskId}` — статус задачи и результаты (в одном ответе)
 
-- `GET /health` - health check
-- `GET /models/status` - статус модели
-- `POST /process` - обработка DICOM файла
+### ML Service
+
+- `GET /health` — health check
+- `GET /models/status` — статус модели
+- `POST /process` — обработка (серия/объём; детали в FastAPI-приложении)
 
 ## Workflow
 
-1. **Загрузка DICOM**: Пользователь загружает .dcm файл через iOS приложение
-2. **Backend**: Сохраняет файл, создает задачу в БД, отправляет в ML Service
-3. **ML Service**:
-   - Парсит DICOM файл
-   - Находит нужные срезы (ортогональные, сагиттальные, фронтальные)
-   - Выполняет сегментацию ВНЧС
-   - Вычисляет геометрические параметры
-   - Генерирует диагноз и рекомендации
-4. **Backend**: Сохраняет результаты в БД
-5. **iOS App**: Получает и отображает результаты
+1. **Загрузка DICOM**: клиент (iOS) отправляет серию `.dcm` на Backend (`POST /api/analysis`).
+2. **Backend**: сохраняет файлы в `uploads/`, создаёт задачу в SQLite, в фоне вызывает ML Service.
+3. **ML Service**: собирает 3D-объём, выполняет **детекцию** TMJ (координаты, при необходимости bbox), может включать дополнительную обработку по текущему пайплайну.
+4. **Backend**: сохраняет JSON-результаты и метаданные (в т.ч. `volumeShape`) в БД.
+5. **iOS App**: запрашивает результат по `taskId` и отображает координаты / UI детекции.
+
+Отдельный тулчейн в `MLService/` (датасет → ROI → сегментация U-Net) описан в [MLService/README.md](MLService/README.md) и не обязан совпадать с каждым шагом продакшен-запроса через Backend.
 
 ## Функциональность
 
@@ -124,47 +124,29 @@ curl http://localhost:8001/health
 - HTTP клиент для ML Service
 
 ✅ ML Service (Python)
-- Парсинг DICOM файлов
-- Поиск релевантных срезов
-- Архитектура модели сегментации (U-Net)
-- Вычисление геометрических параметров
-- Логика диагностики
-- Dummy mode (без обученной модели)
+- Парсинг DICOM и сбор объёма
+- Детекция TMJ (3D CNN; см. эксперименты и `MODEL_PATH`)
+- Инструменты обучения, датасета и сегментации (U-Net) в репозитории
+- Поддержка MPS / CUDA по конфигурации
 
-### В разработке
+### В разработке / улучшения
 
-🔄 ML модель
-- Обучение модели сегментации на реальных данных
-- Оптимизация инференса
-
-🔄 iOS приложение
-- UI/UX дизайн
-- DICOM viewer
-- Отображение результатов
-- Чат с ИИ
+🔄 Качество детекции (метрики на валидации, см. [QUICKSTART.md](QUICKSTART.md))
+🔄 Расширение UI (3D-визуализация, экспорт результатов и т.д.)
 
 ## Структура проекта
 
 ```
 MasterProject/
-├── Backend/                    # Swift Vapor backend
-│   ├── Sources/App/
-│   │   ├── Controllers/       # API контроллеры
-│   │   ├── Models/            # Модели БД
-│   │   ├── Services/          # Бизнес-логика
-│   │   ├── configure.swift
-│   │   ├── routes.swift
-│   │   └── entrypoint.swift
-│   └── Package.swift
-│
-├── MLService/                  # Python ML сервис
-│   ├── app.py                 # FastAPI приложение
-│   ├── models/                # ML модели
-│   ├── services/              # Обработка данных
-│   ├── utils/                 # Утилиты
-│   └── requirements.txt
-│
-└── README.md                  # Этот файл
+├── Backend/
+├── MLService/
+├── iOSApp/MasterDoctor/       # Xcode-проект и модули
+├── docs/                      # Оглавление и контекст (в т.ч. для агентов)
+├── examples/
+├── README.md
+├── AGENTS.md
+├── QUICKSTART.md
+└── TMJ_DETECTION_SETUP.md
 ```
 
 ## Разработка
@@ -188,20 +170,14 @@ uvicorn app:app --reload --port 8001
 
 ## Тестирование
 
-### Загрузка тестового DICOM файла
+Проверка сервисов:
 
 ```bash
-# Требуется DICOM файл для тестирования
-curl -X POST http://localhost:8080/api/dicom/upload \
-  -H "Content-Type: application/json" \
-  -d '{"filename": "test.dcm", "data": "..."}'
+curl http://localhost:8080/health
+curl http://localhost:8001/health
 ```
 
-### Проверка статуса задачи
-
-```bash
-curl http://localhost:8080/api/analysis/{taskId}/status
-```
+Интеграционная загрузка DICOM — через **multipart** на `POST /api/analysis` (как iOS-клиент или Postman). Подробности и типичные проблемы: [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md).
 
 ## Конфигурация
 
@@ -217,10 +193,13 @@ curl http://localhost:8080/api/analysis/{taskId}/status
 
 ## Документация
 
+- [Оглавление docs/](docs/README.md)
 - [Backend README](Backend/README.md)
 - [ML Service README](MLService/README.md)
-- [Architecture Plan](.cursor/plans/architecture-reference.md)
-- [Backend Implementation Plan](.cursor/plans/backend-ml-implementation.md)
+- [Быстрый старт детекции](QUICKSTART.md)
+- [Настройка TMJ pipeline](TMJ_DETECTION_SETUP.md)
+
+Черновики планов в каталоге `.cursor/plans/` при работе в Cursor могут быть только локально (каталог `.cursor/` не в git).
 
 ## Лицензия
 

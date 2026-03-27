@@ -50,39 +50,27 @@ GET /health
 
 Возвращает статус сервиса.
 
-### Загрузка DICOM файла
+### Загрузка серии DICOM
 ```
-POST /api/dicom/upload
-Content-Type: application/json
-
-{
-  "filename": "scan.dcm",
-  "data": <ByteBuffer>
-}
+POST /api/analysis
+Content-Type: multipart/form-data
 ```
 
-Возвращает:
+Тело: несколько файлов в частях формы; на сервере ожидается декодирование в `SeriesUploadRequest` с массивом `files` (см. `AnalysisController.swift`).
+
+Ответ (JSON, ключи в snake_case):
 ```json
 {
-  "taskId": "uuid",
-  "status": "uploaded",
-  "message": "File uploaded successfully. Processing started."
+  "task_id": "uuid"
 }
 ```
 
-### Получить результаты анализа
+### Результат и статус задачи
 ```
 GET /api/analysis/{taskId}
 ```
 
-Возвращает результаты обработки DICOM файла.
-
-### Получить статус задачи
-```
-GET /api/analysis/{taskId}/status
-```
-
-Возвращает текущий статус задачи (pending, processing, completed, failed).
+В одном ответе: `status` задачи (`pending`, `processing`, `completed`, `failed`), при готовности — поля с результатами TMJ и `volume_shape`. Отдельного маршрута только для статуса в текущей реализации нет.
 
 ## Конфигурация
 

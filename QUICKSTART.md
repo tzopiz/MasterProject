@@ -53,7 +53,7 @@ swift run
 
 Проверка:
 ```bash
-curl http://localhost:8080/api/health
+curl http://localhost:8080/health
 ```
 
 ### 3. iOS App
