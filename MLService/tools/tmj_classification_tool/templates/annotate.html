@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMJ Annotation - {{ study_id }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="annotate-page">
+    <div class="annotate-container">
+        <header class="annotate-header">
+            <div class="header-left">
+                <a href="/" class="btn btn-secondary">← Назад</a>
+                <h1>Разметка исследования</h1>
+            </div>
+            <div class="header-info">
+                <span id="studyInfo">Загрузка...</span>
+            </div>
+        </header>
+
+        <main class="annotate-main">
+            <!-- Viewers Grid -->
+            <div class="viewers-grid">
+                <!-- Axial Viewer -->
+                <div class="viewer-panel">
+                    <div class="viewer-header">
+                        <h3>Аксиальная плоскость (Axial)</h3>
+                        <span class="slice-info" id="axialInfo">Срез: 0/0</span>
+                    </div>
+                    <div class="viewer-canvas-container">
+                        <canvas id="axialCanvas"></canvas>
+                        <div class="viewer-loading" id="axialLoading">Загрузка...</div>
+                    </div>
+                    <div class="viewer-controls">
+                        <input 
+                            type="range" 
+                            id="axialSlider" 
+                            class="slice-slider" 
+                            min="0" 
+                            max="100" 
+                            value="50"
+                        >
+                    </div>
+                </div>
+
+                <!-- Sagittal Viewer -->
+                <div class="viewer-panel">
+                    <div class="viewer-header">
+                        <h3>Саггитальная плоскость (Sagittal)</h3>
+                        <span class="slice-info" id="sagittalInfo">Срез: 0/0</span>
+                    </div>
+                    <div class="viewer-canvas-container">
+                        <canvas id="sagittalCanvas"></canvas>
+                        <div class="viewer-loading" id="sagittalLoading">Загрузка...</div>
+                    </div>
+                    <div class="viewer-controls">
+                        <input 
+                            type="range" 
+                            id="sagittalSlider" 
+                            class="slice-slider" 
+                            min="0" 
+                            max="100" 
+                            value="50"
+                        >
+                    </div>
+                </div>
+
+                <!-- Coronal Viewer -->
+                <div class="viewer-panel">
+                    <div class="viewer-header">
+                        <h3>Корональная плоскость (Coronal)</h3>
+                        <span class="slice-info" id="coronalInfo">Срез: 0/0</span>
+                    </div>
+                    <div class="viewer-canvas-container">
+                        <canvas id="coronalCanvas"></canvas>
+                        <div class="viewer-loading" id="coronalLoading">Загрузка...</div>
+                    </div>
+                    <div class="viewer-controls">
+                        <input 
+                            type="range" 
+                            id="coronalSlider" 
+                            class="slice-slider" 
+                            min="0" 
+                            max="100" 
+                            value="50"
+                        >
+                    </div>
+                </div>
+            </div>
+
+            <!-- Annotation Panel -->
+            <div class="annotation-panel">
+                <h2>Классификация суставов</h2>
+                
+                <!-- Left Joint -->
+                <div class="joint-section">
+                    <h3>🦷 Левый сустав</h3>
+                    <div class="tag-selector" id="leftJointTags">
+                        <!-- Tags will be loaded here -->
+                    </div>
+                    <div class="selected-tag" id="leftSelectedTag">
+                        Не выбрано
+                    </div>
+                </div>
+
+                <!-- Right Joint -->
+                <div class="joint-section">
+                    <h3>🦷 Правый сустав</h3>
+                    <div class="tag-selector" id="rightJointTags">
+                        <!-- Tags will be loaded here -->
+                    </div>
+                    <div class="selected-tag" id="rightSelectedTag">
+                        Не выбрано
+                    </div>
+                </div>
+
+                <!-- Add New Tag -->
+                <div class="add-tag-section">
+                    <input 
+                        type="text" 
+                        id="newTagInput" 
+                        placeholder="Новая категория"
+                        onkeypress="if(event.key==='Enter') addNewTag()"
+                    >
+                    <button onclick="addNewTag()" class="btn btn-secondary">
+                        + Добавить категорию
+                    </button>
+                </div>
+
+                <!-- Save Actions -->
+                <div class="save-actions">
+                    <button onclick="saveAnnotation()" class="btn btn-primary btn-large" id="saveBtn">
+                        💾 Сохранить
+                    </button>
+                </div>
+
+                <!-- Navigation Actions -->
+                <div class="save-actions" style="margin-top: 10px;">
+                    <button onclick="goToPrevious()" class="btn btn-secondary btn-large">
+                        ← Назад
+                    </button>
+                    <button onclick="goToNext()" class="btn btn-success btn-large">
+                        → Далее
+                    </button>
+                </div>
+
+                <div id="saveStatus" class="status-message"></div>
+
+                <!-- Keyboard Shortcuts -->
+                <div class="shortcuts-info">
+                    <h4>Горячие клавиши:</h4>
+                    <ul>
+                        <li><kbd>←</kbd> <kbd>→</kbd> - Навигация по срезам</li>
+                        <li><kbd>1-9</kbd> - Быстрый выбор тега</li>
+                        <li><kbd>Ctrl+S</kbd> - Сохранить</li>
+                        <li><kbd>Ctrl+←</kbd> - Назад</li>
+                        <li><kbd>Ctrl+→</kbd> или <kbd>Ctrl+Enter</kbd> - Далее</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        // Initialize page with patient and study IDs
+        const PATIENT_ID = "{{ patient_id }}";
+        const STUDY_ID = "{{ study_id }}";
+
+        // Initialize viewer when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            initializeViewer(PATIENT_ID, STUDY_ID);
+        });
+    </script>
+</body>
+</html>

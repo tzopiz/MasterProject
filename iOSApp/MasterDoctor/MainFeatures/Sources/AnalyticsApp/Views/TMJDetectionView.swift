@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 import CoreNetwork
 import FoundationInternal
 import CoreSwiftUI
+import CommonDependencies
 
 public struct TMJDetectionView: View {
     @State private var selectedFiles: [URL] = []
@@ -14,13 +15,9 @@ public struct TMJDetectionView: View {
     @State private var showFilePicker = false
     @State private var showFileNames = false
 
-    private let fetchService: TMJDetectionFetchService
-
     @Environment(\.deps) private var deps
 
-    public init() {
-        
-    }
+    public init() {}
     
     public var body: some View {
         NavigationStack {
@@ -38,7 +35,7 @@ public struct TMJDetectionView: View {
                     }
                 } header: {
                     HStack {
-                        Label("Status", systemImage: "folder")
+                        Label("DICOM Files", systemImage: "folder")
                         Spacer()
                         Button {
                             withAnimation {
@@ -52,7 +49,7 @@ public struct TMJDetectionView: View {
                     }
                 } footer: {
                     if selectedFiles.isEmpty {
-                        Text("No files selected")
+                        Text("Tap + to select a folder with .dcm files")
                     } else {
                         Text("\(selectedFiles.count) DICOM files")
                     }
@@ -75,7 +72,7 @@ public struct TMJDetectionView: View {
                 if let selectedFiles = selectedFiles.nilIfEmpty, !isProcessing {
                     Button {
                         Task {
-//                            await runAnalysis()
+                            await runAnalysis(files: selectedFiles)
                         }
                     } label: {
                         Label("Start TMJ Detection", systemImage: "brain")
@@ -101,6 +98,25 @@ public struct TMJDetectionView: View {
                 selectedFiles: $selectedFiles,
             )
         }
+    }
+
+    private func runAnalysis(files: [URL]) async {
+        isProcessing = true
+        analysisResult = nil
+        statusMessage = "Uploading…"
+        let uid = UUID()
+        let service = TMJDetectionFetchService(
+            networkingService: deps.networkingService,
+            decoder: deps.decoder
+        )
+        do {
+            let result = try await service.runAnalysis(uid, selectedFiles: files)
+            analysisResult = result
+            statusMessage = "Analysis complete"
+        } catch {
+            statusMessage = "Failed: \(error.localizedDescription)"
+        }
+        isProcessing = false
     }
 }
 
@@ -129,12 +145,13 @@ extension View {
                 let fileManager = FileManager.default
                 do {
                     let contents = try fileManager.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: nil)
-                    selectedFiles.wrappedValue = contents.filter { $0.pathExtension.lowercased() == "dcm" }
+                    let dcm = contents.filter { $0.pathExtension.lowercased() == "dcm" }
+                    selectedFiles.wrappedValue = dcm
 
-                    if selectedFiles.isEmpty {
+                    if dcm.isEmpty {
                         statusMessage.wrappedValue = "No DICOM files found in folder"
                     } else {
-                        statusMessage.wrappedValue = "Ready to process \(selectedFiles.count) files"
+                        statusMessage.wrappedValue = "Ready to process \(dcm.count) files"
                     }
                 } catch {
                     statusMessage.wrappedValue = "Error reading folder: \(error.localizedDescription)"
@@ -149,4 +166,5 @@ extension View {
 
 #Preview {
     TMJDetectionView()
+        .environment(\.deps, FakeDependenciesImpl())
 }

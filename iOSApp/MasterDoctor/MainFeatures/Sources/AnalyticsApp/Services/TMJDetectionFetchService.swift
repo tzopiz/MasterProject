@@ -27,7 +27,7 @@ actor TMJDetectionFetchService: Sendable {
         self.decoder = decoder
     }
 
-    func runAnalysis(_ uid: UUID, endpoint: any Endpoint, selectedFiles: [URL]) async throws -> AnalysisResult {
+    func runAnalysis(_ uid: UUID, selectedFiles: [URL]) async throws -> AnalysisResult {
         guard !selectedFiles.isEmpty else {
             throw FetchError.emptySelectedFiles
         }
@@ -48,9 +48,14 @@ actor TMJDetectionFetchService: Sendable {
                 files.append((filename: url.lastPathComponent, data: data))
             }
 
+            guard !files.isEmpty else {
+                isProcessing = false
+                throw FetchError.emptySelectedFiles
+            }
+
             statusMessage = "Uploading \(files.count) files..."
 
-//            let endpoint = AnalysisEndpoint.uploadSeries(files: files, boundary: boundary)
+            let endpoint = AnalysisEndpoint.uploadSeries(files: files, boundary: uid.uuidString)
             let multipartData = endpoint.createMultipartBodyForSeries(files: files, boundary: uid.uuidString)
             let uploadResp: UploadResponse = try await networkingService.upload(endpoint, from: multipartData)
 
@@ -59,13 +64,13 @@ actor TMJDetectionFetchService: Sendable {
             let result = try await pollForResults(taskId: uploadResp.taskId)
 
             self.statusMessage = "✓ Detection Complete!"
+            self.isProcessing = false
             return result
         } catch {
             self.statusMessage = "Error: \(error.localizedDescription)"
+            self.isProcessing = false
+            throw error
         }
-
-        isProcessing = false
-        throw FetchError.unknown
     }
 
     private func pollForResults(taskId: UUID) async throws -> AnalysisResult {

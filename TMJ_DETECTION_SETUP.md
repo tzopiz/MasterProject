@@ -219,6 +219,9 @@ cd MLService
 ```
 
 ### Просмотр логов обучения
+
+Смотрите вывод процесса в том терминале, где запущено обучение, или файлы логов в каталоге эксперимента (если настроена запись в файл). Пример из файла терминала Cursor:
+
 ```bash
 tail -50 ~/.cursor/projects/Users-tzopiz-Developer-MasterProject/terminals/10.txt | grep -E "Epoch|MAE"
 ```
