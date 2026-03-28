@@ -198,6 +198,7 @@ curl http://localhost:8001/health
 - [ML Service README](MLService/README.md)
 - [Быстрый старт детекции](QUICKSTART.md)
 - [Настройка TMJ pipeline](TMJ_DETECTION_SETUP.md)
+- [Публичная CBCT-когорта: метки и сбор датасета](docs/cbct-public-cohort-dataset.md)
 
 Черновики планов в каталоге `.cursor/plans/` при работе в Cursor могут быть только локально (каталог `.cursor/` не в git).
 

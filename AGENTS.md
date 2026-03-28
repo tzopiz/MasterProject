@@ -28,6 +28,7 @@
 |--------|----------------|
 | Запуск всей цепочки | [QUICKSTART.md](QUICKSTART.md), [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md) |
 | ML: обучение, датасет, инструменты | [MLService/README.md](MLService/README.md), [MLService/TRAINING_MONITORING.md](MLService/TRAINING_MONITORING.md) |
+| Публичная CBCT-когорта (DOCX→метки, Яндекс.Диск, zip, датасет) | [docs/cbct-public-cohort-dataset.md](docs/cbct-public-cohort-dataset.md) |
 | API Backend | `Backend/Sources/App/Controllers/`, [Backend/README.md](Backend/README.md) |
 | Сеть iOS ↔ Backend | `iOSApp/.../AnalysisEndpoint.swift` (базовый URL и пути) |
 | Презентация / экспорт HTML→PDF | [EXPORT_README.md](EXPORT_README.md) |

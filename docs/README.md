@@ -10,6 +10,12 @@
 | [../QUICKSTART.md](../QUICKSTART.md) | Пошаговый запуск ML → Backend → iOS, текущие метрики детектора |
 | [../TMJ_DETECTION_SETUP.md](../TMJ_DETECTION_SETUP.md) | Настройка конвейера детекции TMJ, endpoints, troubleshooting |
 
+## Данные: публичная CBCT-когорта (метки классов ВНЧС)
+
+| Документ | Назначение |
+|----------|------------|
+| [cbct-public-cohort-dataset.md](cbct-public-cohort-dataset.md) | Пайплайн DOCX → JSON меток → Яндекс.Диск → zip → распаковка → очистка → организация датасета и анонимизация DICOM; скрипты, пути, манифесты |
+
 ## Контекст для агентов и новых участников
 
 | Документ | Назначение |

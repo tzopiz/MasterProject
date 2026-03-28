@@ -118,12 +118,47 @@ python train_3d.py --data_dir data/auto_crops --epochs 100
 В папке `tools/` находятся утилиты для работы с данными:
 
 - `roi_annotation_tool.py`: GUI приложение для быстрой разметки центров суставов.
-- `organize_dataset.py`: Скрипт для сортировки и переименования DICOM файлов.
+- `organize_dataset.py`: Скрипт для сортировки и переименования DICOM; флаг **`--anonymize`** — снятие PHI и публичный `manifest.json` без ФИО (см. `docs/cbct-public-cohort-dataset.md`).
 - `auto_crop_from_detector.py`: Автоматическое создание кропов с использованием детектора.
 - `manual_crop_tool.py`: (Legacy) Ручное создание кропов.
 - `create_portable_tool.py`: Создание portable-версии разметчика для передачи врачам/коллегам.
 - `visualize_detector.py`: Визуальная проверка работы детектора (рисует bounding box на снимке).
 - `extract_crops_from_annotations.py`: Создание кропов на основе JSON аннотаций (без детектора).
+Полный сценарий **публичной CBCT-когорты** (DOCX, Яндекс.Диск, zip, датасет): [docs/cbct-public-cohort-dataset.md](../docs/cbct-public-cohort-dataset.md).
+
+- `parse_tmj_position_labels_docx.py`: Разбор DOCX с кодами 1–6 и блоками «Пациент N. …» в JSON (разметка положения головок ВНЧС).
+
+```bash
+python tools/parse_tmj_position_labels_docx.py -i путь/к/файлу.docx -o labels.json --pretty
+```
+
+- `download_yandex_cbct_cohort.py`: скачивание `.zip` пациентов из публичной папки Яндекс.Диска по `tmj_position_labels.json` (сначала `--dry-run`).
+
+```bash
+python tools/download_yandex_cbct_cohort.py --labels data/tmj_position_labels.json \\
+  --output-dir data/cbct_public_zips --dry-run
+```
+
+- `prepare_cbct_cohort.py`: скачать все zip (по умолчанию с `--download-below-threshold`), распаковать в `data/cbct_public_extracted/<имя>/`, удалить мусор.
+
+```bash
+python tools/prepare_cbct_cohort.py
+python tools/prepare_cbct_cohort.py --no-download
+```
+
+- `build_cbct_zip_dataset.py` — только **распаковка zip → папка пациента** и **расширенная очистка** (логи, html, вьюеры, `__MACOSX`, пустые каталоги). Правила: `tools/dicom_cohort_cleanup.py`.
+
+```bash
+python tools/build_cbct_zip_dataset.py --dry-run
+python tools/build_cbct_zip_dataset.py
+```
+
+- `sync_cbct_cohort.py` — распаковка новых zip + **`organize_dataset --anonymize`** (единая команда для обновления датасета).
+
+```bash
+python tools/sync_cbct_cohort.py
+python tools/sync_cbct_cohort.py --download
+```
 
 ---
 

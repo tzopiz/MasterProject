@@ -5,12 +5,15 @@ Dataset Organizer for TMJ CBCT Data
 This script:
 1. Scans all patient directories in data/
 2. Finds all DICOM series
-3. Removes unnecessary files (exe, dll, jpg, db, bin, etc.)
+3. Removes unnecessary files (exe, dll, jpg, db, bin, etc.) if --clean
 4. Organizes all series into a clean dataset structure with sequential naming
 5. Creates a manifest file with mapping
+6. With --anonymize: strips PHI in DICOM (see dicom_phi_strip.py), writes a public
+   manifest without patient names/paths and manifest_private.json for local linkage.
 
 Usage:
     python tools/organize_dataset.py --input data/ --output data/dataset --clean
+    python tools/organize_dataset.py --input data/cbct_public_extracted --output data/dataset_cbct_public --anonymize
 """
 
 import os
@@ -55,10 +58,17 @@ JUNK_EXTENSIONS = [
 class DatasetOrganizer:
     """Organize CBCT dataset into clean structure"""
     
-    def __init__(self, input_dir: str, output_dir: str, clean_input: bool = False):
+    def __init__(
+        self,
+        input_dir: str,
+        output_dir: str,
+        clean_input: bool = False,
+        anonymize: bool = False,
+    ):
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.clean_input = clean_input
+        self.anonymize = anonymize
         
         # Statistics
         self.stats = {
@@ -107,17 +117,31 @@ class DatasetOrganizer:
                     if not date_dir.is_dir():
                         continue
                     
-                    # Find DICOM series directories (e.g., 2.16.840...)
+                    # Find DICOM series directories (e.g., 2.16.840.../*.dcm)
+                    # Либо *.dcm прямо в series_dir, либо ещё один уровень UID (типично для CBCT с Диска)
                     for series_dir in date_dir.iterdir():
                         if not series_dir.is_dir():
                             continue
-                        
-                        # Check if contains DICOM files
-                        dcm_files = list(series_dir.glob('*.dcm'))
+
+                        dcm_files = list(series_dir.glob("*.dcm"))
                         if dcm_files:
                             series_list.append((patient_name, series_dir))
-                            self.stats['series_found'] += 1
-                            logger.info(f"    Found series: {series_dir.name[:30]}... ({len(dcm_files)} DICOM files)")
+                            self.stats["series_found"] += 1
+                            logger.info(
+                                f"    Found series: {series_dir.name[:30]}... ({len(dcm_files)} DICOM files)"
+                            )
+                            continue
+
+                        for uid_dir in series_dir.iterdir():
+                            if not uid_dir.is_dir():
+                                continue
+                            dcm_files = list(uid_dir.glob("*.dcm"))
+                            if dcm_files:
+                                series_list.append((patient_name, uid_dir))
+                                self.stats["series_found"] += 1
+                                logger.info(
+                                    f"    Found series: {uid_dir.name[:30]}... ({len(dcm_files)} DICOM files)"
+                                )
         
         logger.info(f"\nTotal: {self.stats['patients_found']} patients, {self.stats['series_found']} series")
         return series_list
@@ -174,9 +198,15 @@ class DatasetOrganizer:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"\nOrganizing dataset into {self.output_dir}")
-        
+
+        if self.anonymize:
+            from pydicom.uid import generate_uid
+
+            from dicom_phi_strip import write_anonymized_dicom
+
         for idx, (patient_name, series_path) in enumerate(series_list, start=1):
             study_id = f"study_{idx:04d}"
+            subject_id = f"sub_{idx:04d}"
             output_path = self.output_dir / study_id
             
             try:
@@ -186,16 +216,36 @@ class DatasetOrganizer:
                 # Copy DICOM files
                 dcm_files = list(series_path.glob('*.dcm'))
                 
-                logger.info(f"  [{idx}/{len(series_list)}] {study_id} <- {patient_name} ({len(dcm_files)} files)")
-                
+                mode = "anonymized" if self.anonymize else "copy"
+                logger.info(
+                    f"  [{idx}/{len(series_list)}] {study_id} ({subject_id}, {mode}) <- {patient_name} ({len(dcm_files)} files)"
+                )
+
+                study_uid = series_uid = frame_uid = ""
+                if self.anonymize:
+                    study_uid = generate_uid()
+                    series_uid = generate_uid()
+                    frame_uid = generate_uid()
+
                 for dcm_file in dcm_files:
                     dest_file = output_path / dcm_file.name
-                    shutil.copy2(dcm_file, dest_file)
+                    if self.anonymize:
+                        write_anonymized_dicom(
+                            dcm_file,
+                            dest_file,
+                            study_id=study_id,
+                            study_instance_uid=study_uid,
+                            series_instance_uid=series_uid,
+                            frame_of_reference_uid=frame_uid,
+                        )
+                    else:
+                        shutil.copy2(dcm_file, dest_file)
                     self.stats['files_copied'] += 1
                 
-                # Add to manifest
+                # Add to manifest (full row; public export may omit PHI fields)
                 self.manifest.append({
                     'study_id': study_id,
+                    'subject_id': subject_id,
                     'patient_name': patient_name,
                     'original_path': str(series_path.relative_to(self.input_dir)),
                     'num_files': len(dcm_files),
@@ -209,20 +259,49 @@ class DatasetOrganizer:
         return self.manifest
     
     def save_manifest(self):
-        """Save manifest to JSON file"""
+        """Save manifest to JSON file (and manifest_private.json if --anonymize)."""
         manifest_file = self.output_dir / 'manifest.json'
-        
-        manifest_data = {
-            'created_at': datetime.now().isoformat(),
-            'input_dir': str(self.input_dir),
-            'output_dir': str(self.output_dir),
-            'statistics': self.stats,
-            'studies': self.manifest
-        }
-        
+
+        if self.anonymize:
+            public_studies = [
+                {
+                    'study_id': row['study_id'],
+                    'subject_id': row['subject_id'],
+                    'num_files': row['num_files'],
+                    'organized_at': row['organized_at'],
+                }
+                for row in self.manifest
+            ]
+            manifest_data = {
+                'anonymized': True,
+                'created_at': datetime.now().isoformat(),
+                'output_dir': str(self.output_dir),
+                'note': 'DICOM PHI stripped; no patient names or paths in this file.',
+                'statistics': self.stats,
+                'studies': public_studies,
+            }
+            private_file = self.output_dir / 'manifest_private.json'
+            private_data = {
+                'warning': 'Содержит ФИО и пути — не публиковать и не коммитить.',
+                'created_at': datetime.now().isoformat(),
+                'input_dir': str(self.input_dir),
+                'studies': self.manifest,
+            }
+            with open(private_file, 'w', encoding='utf-8') as f:
+                json.dump(private_data, f, indent=2, ensure_ascii=False)
+            logger.info(f"✅ Private linkage manifest (PHI): {private_file}")
+        else:
+            manifest_data = {
+                'created_at': datetime.now().isoformat(),
+                'input_dir': str(self.input_dir),
+                'output_dir': str(self.output_dir),
+                'statistics': self.stats,
+                'studies': self.manifest,
+            }
+
         with open(manifest_file, 'w', encoding='utf-8') as f:
             json.dump(manifest_data, f, indent=2, ensure_ascii=False)
-        
+
         logger.info(f"\n✅ Manifest saved to {manifest_file}")
     
     def create_annotation_script(self):
@@ -247,7 +326,8 @@ class DatasetOrganizer:
             
             for idx, item in enumerate(self.manifest, start=1):
                 study_id = item['study_id']
-                f.write(f'# {study_id} (Patient: {item["patient_name"]})\n')
+                who = item["subject_id"] if self.anonymize else item["patient_name"]
+                f.write(f'# {study_id} ({who})\n')
                 f.write(f'echo "=== [{idx}/{len(self.manifest)}] Processing {study_id} ==="\n')
                 f.write(f'python3 "$MLSERVICE_DIR/tools/roi_annotation_tool.py" \\\n')
                 f.write(f'    "$SCRIPT_DIR/{study_id}" \\\n')
@@ -279,11 +359,13 @@ class DatasetOrganizer:
         logger.info("="*70)
         logger.info(f"Output directory:  {self.output_dir}")
         logger.info(f"Manifest:          {self.output_dir / 'manifest.json'}")
+        if self.anonymize:
+            logger.info(f"Private manifest:  {self.output_dir / 'manifest_private.json'}")
         logger.info(f"Annotation script: {self.output_dir / 'annotate_all.sh'}")
         logger.info("="*70 + "\n")
     
-    def run(self):
-        """Run the full organization process"""
+    def run(self) -> bool:
+        """Run the full organization process. Returns False if nothing to organize."""
         logger.info("="*70)
         logger.info("TMJ CBCT DATASET ORGANIZER")
         logger.info("="*70 + "\n")
@@ -293,7 +375,7 @@ class DatasetOrganizer:
         
         if not series_list:
             logger.error("No DICOM series found!")
-            return
+            return False
         
         # Step 2: Clean input directory (if requested)
         if self.clean_input:
@@ -329,6 +411,7 @@ class DatasetOrganizer:
         logger.info(f"       {self.output_dir / 'study_0001'} \\")
         logger.info("       --output data/roi_annotations")
         logger.info("-" * 70 + "\n")
+        return True
 
 
 def main():
@@ -353,7 +436,12 @@ def main():
         action='store_true',
         help='Remove junk files from input directory (exe, dll, jpg, etc.)'
     )
-    
+    parser.add_argument(
+        '--anonymize',
+        action='store_true',
+        help='Strip PHI in DICOM; public manifest without names/paths; writes manifest_private.json',
+    )
+
     args = parser.parse_args()
     
     # Check input directory exists
@@ -362,8 +450,9 @@ def main():
         sys.exit(1)
     
     # Run organizer
-    organizer = DatasetOrganizer(args.input, args.output, args.clean)
-    organizer.run()
+    organizer = DatasetOrganizer(args.input, args.output, args.clean, anonymize=args.anonymize)
+    if not organizer.run():
+        sys.exit(1)
 
 
 if __name__ == '__main__':

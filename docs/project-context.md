@@ -74,6 +74,10 @@ MasterProject/
 
 Некоторые файлы отражали более ранний API (например, JSON-загрузка одного файла). При противоречии с `AnalysisController` и `AnalysisEndpoint.swift` **приоритет у кода**. Имеет смысл постепенно выравнивать [Backend/README.md](../Backend/README.md) и корневой README.
 
+## Локальные данные: публичная CBCT-когорта
+
+Для задачи классификации положения головок ВНЧС (коды из клинического DOCX) используются скрипты в `MLService/tools/` и каталоги **`MLService/data/cbct_public_zips/`** (архивы) и **`MLService/data/cbct_public_extracted/`** (распаковка + очистка под DICOM). Они **в `.gitignore`**; метки в репозитории — **`MLService/data/tmj_position_labels.json`** (генерируется из DOCX). Подробно: [cbct-public-cohort-dataset.md](cbct-public-cohort-dataset.md).
+
 ## Соглашения репозитория
 
 - Секреты, большие веса и локальные артефакты не коммитятся (см. корневой `.gitignore`, `MLService/.gitignore`).
