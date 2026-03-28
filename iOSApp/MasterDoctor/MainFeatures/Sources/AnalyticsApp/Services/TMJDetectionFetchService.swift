@@ -27,91 +27,50 @@ actor TMJDetectionFetchService: Sendable {
         self.decoder = decoder
     }
 
-    func runAnalysis(_ uid: UUID, endpoint: any Endpoint, selectedFiles: [URL]) async throws -> AnalysisResult {
+    func runAnalysis(_ uid: UUID, selectedFiles: [URL]) async throws -> AnalysisResult {
         guard !selectedFiles.isEmpty else {
             throw FetchError.emptySelectedFiles
         }
 
         self.isProcessing = true
         statusMessage = "Loading files..."
-        
-        // --- MOCK IMPLEMENTATION START ---
-        // Simulating upload and processing delay
+
         do {
-            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 sec loading
-            statusMessage = "Uploading files..."
-            try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 sec upload
-            statusMessage = "Processing (Task: \(uid.uuidString.prefix(8))...)..."
-            try await Task.sleep(nanoseconds: 2_000_000_000) // 2 sec processing
-            
+            var files: [(filename: String, data: Data)] = []
+
+            for (index, url) in selectedFiles.enumerated() {
+                statusMessage = "Loading file \(index + 1)/\(selectedFiles.count)..."
+
+                guard url.startAccessingSecurityScopedResource() else { continue }
+                defer { url.stopAccessingSecurityScopedResource() }
+
+                let data = try Data(contentsOf: url)
+                files.append((filename: url.lastPathComponent, data: data))
+            }
+
+            guard !files.isEmpty else {
+                isProcessing = false
+                throw FetchError.emptySelectedFiles
+            }
+
+            statusMessage = "Uploading \(files.count) files..."
+
+            let endpoint = AnalysisEndpoint.uploadSeries(files: files, boundary: uid.uuidString)
+            let multipartData = endpoint.createMultipartBodyForSeries(files: files, boundary: uid.uuidString)
+            let uploadResp: UploadResponse = try await networkingService.upload(endpoint, from: multipartData)
+
+            statusMessage = "Processing (Task: \(uploadResp.taskId.uuidString.prefix(8))...)..."
+
+            let result = try await pollForResults(taskId: uploadResp.taskId)
+
             self.statusMessage = "✓ Detection Complete!"
             self.isProcessing = false
-            return getMockResult(taskId: uid)
+            return result
         } catch {
-             self.isProcessing = false
-             throw FetchError.unknown
+            self.statusMessage = "Error: \(error.localizedDescription)"
+            self.isProcessing = false
+            throw error
         }
-        // --- MOCK IMPLEMENTATION END ---
-
-//        do {
-//            var files: [(filename: String, data: Data)] = []
-//
-//            for (index, url) in selectedFiles.enumerated() {
-//                statusMessage = "Loading file \(index + 1)/\(selectedFiles.count)..."
-//
-//                guard url.startAccessingSecurityScopedResource() else { continue }
-//                defer { url.stopAccessingSecurityScopedResource() }
-//
-//                let data = try Data(contentsOf: url)
-//                files.append((filename: url.lastPathComponent, data: data))
-//            }
-//
-//            statusMessage = "Uploading \(files.count) files..."
-//
-//            let multipartData = endpoint.createMultipartBodyForSeries(files: files, boundary: uid.uuidString)
-//            let uploadResp: UploadResponse = try await networkingService.upload(endpoint, from: multipartData)
-//
-//            statusMessage = "Processing (Task: \(uploadResp.taskId.uuidString.prefix(8))...)..."
-//
-//            let result = try await pollForResults(taskId: uploadResp.taskId)
-//
-//            self.statusMessage = "✓ Detection Complete!"
-//            return result
-//        } catch {
-//            self.statusMessage = "Error: \(error.localizedDescription)"
-//        }
-//
-//        isProcessing = false
-//        throw FetchError.unknown
-    }
-    
-    private func getMockResult(taskId: UUID) -> AnalysisResult {
-        return AnalysisResult(
-            taskId: taskId,
-            slices: nil,
-            masks: nil,
-            parameters: AnalysisResult.GeometricParameters(
-                fossaHeight: 12.5,
-                headHeight: 8.4,
-                width: 15.2,
-                additionalParams: ["Joint Space": 2.1]
-            ),
-            diagnosis: AnalysisResult.DiagnosisData(
-                status: "Pathology Detected",
-                confidence: 0.92,
-                recommendations: ["Consult with specialist", "Additional MRI recommended"],
-                disclaimer: "AI generated result. Verification required."
-            ),
-            tmjLeft: BoundingBox(
-                center: [180.0, 230.0, 145.0], // Z, Y, X
-                bbox: [140, 190, 105, 220, 270, 185] // Z1, Y1, X1, Z2, Y2, X2
-            ),
-            tmjRight: BoundingBox(
-                center: [175.0, 228.0, 430.0], // Z, Y, X
-                bbox: [135, 188, 390, 215, 268, 470] // Z1, Y1, X1, Z2, Y2, X2
-            ),
-            volumeShape: [350, 512, 512]
-        )
     }
 
     private func pollForResults(taskId: UUID) async throws -> AnalysisResult {

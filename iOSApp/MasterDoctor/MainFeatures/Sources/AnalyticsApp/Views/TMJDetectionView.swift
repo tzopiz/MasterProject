@@ -2,21 +2,18 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import CoreNetwork
 import FoundationInternal
 import CoreSwiftUI
+import CommonDependencies
 
 public struct TMJDetectionView: View {
-    @State private var selectedFiles: [URL] = [URL(fileURLWithPath: "123123")]
-    @State private var selectedFolderURL: URL?
+    @State private var selectedFiles: [URL] = []
     @State private var analysisResult: AnalysisResult?
     @State private var statusMessage: String = "Select DICOM folder to start"
     @State private var isProcessing = false
-    @State private var progressValue: Double = 0.0
     @State private var showFilePicker = false
     @State private var showFileNames = false
-    @State private var showDICOMViewer = false
-    @State private var dicomSeries: DICOMSeries?
-    @State private var isLoadingSeries = false
 
     @Environment(\.deps) private var deps
 
@@ -25,56 +22,14 @@ public struct TMJDetectionView: View {
     public var body: some View {
         NavigationStack {
             List {
-                // DICOM Files Section
                 Section {
                     if selectedFiles.isEmpty {
-                        ContentUnavailableView {
-                            Label("No DICOM Files", systemImage: "doc.viewfinder")
-                        } description: {
-                            Text("Select a folder containing DICOM files to get started")
-                        }
-                        .listRowBackground(Color.clear)
+                        Text("Here will be your files")
+                            .foregroundStyle(.placeholder)
                     } else {
-                        // Preview button
-                        Button {
-                            Task {
-                                await loadAndShowDICOMViewer()
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: "eye")
-                                    .foregroundColor(.cyan)
-                                Text("View DICOM Series")
-                                Spacer()
-                                if isLoadingSeries {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .disabled(isLoadingSeries)
-                        
-                        // File list toggle
                         if showFileNames {
-                            ForEach(selectedFiles.prefix(20), id: \.self) { url in
-                                HStack {
-                                    Image(systemName: "doc.fill")
-                                        .foregroundColor(.secondary)
-                                        .font(.caption)
-                                    Text(url.lastPathComponent)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            if selectedFiles.count > 20 {
-                                Text("... and \(selectedFiles.count - 20) more files")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                            ForEach(selectedFiles, id: \.self) { url in
+                                Text(url.pathComponents.last ?? "")
                             }
                         }
                     }
@@ -82,63 +37,49 @@ public struct TMJDetectionView: View {
                     HStack {
                         Label("DICOM Files", systemImage: "folder")
                         Spacer()
-                        if !selectedFiles.isEmpty {
-                            Button {
-                                withAnimation {
-                                    showFileNames.toggle()
-                                }
-                            } label: {
-                                Image(systemName: showFileNames ? "chevron.down" : "chevron.right")
-                                    .contentTransition(.symbolEffect(.replace))
-                                    .font(.caption)
+                        Button {
+                            withAnimation {
+                                showFileNames.toggle()
                             }
+                        } label: {
+                            Image(systemName: showFileNames ? "chevron.down" : "chevron.up")
+                                .contentTransition(.symbolEffect(.replace))
                         }
+                        .disabled(selectedFiles.isEmpty)
                     }
                 } footer: {
                     if selectedFiles.isEmpty {
-                        Text("Tap + to select a DICOM folder")
+                        Text("Tap + to select a folder with .dcm files")
                     } else {
-                        Text("\(selectedFiles.count) DICOM files ready")
+                        Text("\(selectedFiles.count) DICOM files")
                     }
                 }
 
-                // Status Section
                 Section {
-                    HStack {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 8, height: 8)
-                        Text(statusMessage)
-                            .foregroundColor(isProcessing ? .orange : .primary)
-                    }
+                    Text(statusMessage)
+                        .foregroundColor(isProcessing ? .orange : .primary)
 
                     if isProcessing {
-                        ProgressView(value: progressValue, total: 100.0)
+                        ProgressView()
                             .progressViewStyle(.linear)
-                            .animation(.linear, value: progressValue)
                     }
                 } header: {
-                    Label("Status", systemImage: "waveform.path.ecg")
+                    Label("Status", systemImage: "apple.intelligence")
                 }
 
-                Section {
-                    analysisResult?.makeView()
-                }
+                analysisResult?.makeView()
 
-                // Action Button
-                if selectedFiles.nilIfEmpty != nil && !isProcessing {
+                if let selectedFiles = selectedFiles.nilIfEmpty, !isProcessing {
                     Button {
                         Task {
-                            await runMockAnalysis()
+                            await runAnalysis(files: selectedFiles)
                         }
                     } label: {
                         Label("Start TMJ Detection", systemImage: "brain")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(.init())
                 }
             }
             .toolbar {
@@ -155,122 +96,35 @@ public struct TMJDetectionView: View {
                 isPresented: $showFilePicker,
                 statusMessage: $statusMessage,
                 selectedFiles: $selectedFiles,
-                selectedFolderURL: $selectedFolderURL
             )
-            .fullScreenCover(isPresented: $showDICOMViewer) {
-                if let series = dicomSeries {
-                    DICOMViewerScreen(series: series)
-                }
-            }
         }
     }
-    
-    // MARK: - Computed Properties
-    
-    private var statusColor: Color {
-        if isProcessing {
-            .orange
-        } else if selectedFiles.isEmpty {
-            .gray
-        } else if analysisResult != nil {
-            .green
-        } else {
-            .blue
-        }
-    }
-    
-    // MARK: - Methods
-    
-    private func runMockAnalysis() async {
+
+    private func runAnalysis(files: [URL]) async {
         isProcessing = true
-        progressValue = 0.0
-        withAnimation { analysisResult = nil }
-        
-        // Helper for smooth progress
-        func animateProgress(to target: Double, duration: Double) async {
-            let steps = 50
-            let stepDuration = UInt64(duration * 1_000_000_000 / Double(steps))
-            let increment = (target - progressValue) / Double(steps)
-            
-            for _ in 0..<steps {
-                progressValue += increment
-                try? await Task.sleep(nanoseconds: stepDuration)
-            }
-            progressValue = target
-        }
-        
-        // Simulate steps
-        statusMessage = "Preparing data..."
-        await animateProgress(to: 10.0, duration: 0.5)
-        
-        statusMessage = "Uploading to server..."
-        await animateProgress(to: 45.0, duration: 1.5)
-        
-        statusMessage = "Processing on GPU..."
-        await animateProgress(to: 95.0, duration: 2.5)
-        
-        statusMessage = "Finalizing..."
-        await animateProgress(to: 100.0, duration: 0.5)
-        
-        try? await Task.sleep(nanoseconds: 200_000_000)
-        
-        withAnimation {
-            analysisResult = AnalysisResult.mock()
-            isProcessing = false
-            statusMessage = "Analysis Complete"
-        }
-    }
-    
-    private func loadAndShowDICOMViewer() async {
-        guard let folderURL = selectedFolderURL else {
-            statusMessage = "No folder selected"
-            return
-        }
-        
-        isLoadingSeries = true
-        
-        // Start accessing security-scoped resource
-        guard folderURL.startAccessingSecurityScopedResource() else {
-            statusMessage = "Cannot access folder"
-            isLoadingSeries = false
-            return
-        }
-        
-        defer {
-            folderURL.stopAccessingSecurityScopedResource()
-        }
-        
+        analysisResult = nil
+        statusMessage = "Uploading…"
+        let uid = UUID()
+        let service = TMJDetectionFetchService(
+            networkingService: deps.networkingService,
+            decoder: deps.decoder
+        )
         do {
-            let loader = DICOMSeriesLoader()
-            let series = try await loader.loadFiles(from: selectedFiles)
-            
-            await MainActor.run {
-                dicomSeries = series
-                isLoadingSeries = false
-                
-                if series.sliceCount > 0 {
-                    showDICOMViewer = true
-                } else {
-                    statusMessage = "No valid DICOM files found"
-                }
-            }
+            let result = try await service.runAnalysis(uid, selectedFiles: files)
+            analysisResult = result
+            statusMessage = "Analysis complete"
         } catch {
-            await MainActor.run {
-                statusMessage = "Error loading DICOM: \(error.localizedDescription)"
-                isLoadingSeries = false
-            }
+            statusMessage = "Failed: \(error.localizedDescription)"
         }
+        isProcessing = false
     }
 }
-
-// MARK: - File Importer Extension
 
 extension View {
     fileprivate func fileImporter(
         isPresented: Binding<Bool>,
         statusMessage: Binding<String>,
         selectedFiles: Binding<[URL]>,
-        selectedFolderURL: Binding<URL?>
     ) -> some View {
         self.fileImporter(
             isPresented: isPresented,
@@ -291,15 +145,13 @@ extension View {
                 let fileManager = FileManager.default
                 do {
                     let contents = try fileManager.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: nil)
-                    let dcmFiles = contents.filter { $0.pathExtension.lowercased() == "dcm" }
-                    
-                    selectedFiles.wrappedValue = dcmFiles
-                    selectedFolderURL.wrappedValue = folderURL
+                    let dcm = contents.filter { $0.pathExtension.lowercased() == "dcm" }
+                    selectedFiles.wrappedValue = dcm
 
-                    if dcmFiles.isEmpty {
+                    if dcm.isEmpty {
                         statusMessage.wrappedValue = "No DICOM files found in folder"
                     } else {
-                        statusMessage.wrappedValue = "Ready to process \(dcmFiles.count) files"
+                        statusMessage.wrappedValue = "Ready to process \(dcm.count) files"
                     }
                 } catch {
                     statusMessage.wrappedValue = "Error reading folder: \(error.localizedDescription)"
@@ -314,4 +166,5 @@ extension View {
 
 #Preview {
     TMJDetectionView()
+        .environment(\.deps, FakeDependenciesImpl())
 }

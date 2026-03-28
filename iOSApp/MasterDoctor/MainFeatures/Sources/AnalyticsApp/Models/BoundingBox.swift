@@ -53,7 +53,6 @@ fileprivate struct TMJCoordinateView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .frame(maxWidth: .infinity)
         .padding()
         .background(Color.blue.opacity(0.05))
         .cornerRadius(8)
