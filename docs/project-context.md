@@ -37,14 +37,15 @@ MasterProject/
 ├── Backend/           # Vapor, миграции Fluent, HTTP к MLService
 ├── MLService/         # FastAPI app.py, services/, models/, tools/, experiments/
 ├── iOSApp/            # Xcode: MasterDoctor и модули
-├── docs/              # Эта документация-хаб (оглавление — README.md)
+├── docs/              # Хаб документации (README.md); `presentation/` — HTML-слайды, конференция, EXPORT_README
+├── scripts/
+│   └── presentation/  # create_* / export_* для DOCX и PDF/PPTX
 ├── examples/          # Примеры / вспомогательные данные
 ├── Nir/               # НИР, отчёты
 ├── README.md          # Главный обзор
 ├── QUICKSTART.md      # Запуск «с нуля» для демо детекции
 ├── TMJ_DETECTION_SETUP.md
 ├── AGENTS.md          # Короткая памятка для ИИ-агентов
-└── …                  # Презентация, EXPORT_README, скрипты экспорта (см. docs/README.md)
 ```
 
 Уточнения по ML: структура `MLService/data/`, чекпойнты в `experiments/`, игнорируемые тяжёлые артефакты — в `MLService/.gitignore` и [MLService/models/README.md](../MLService/models/README.md).

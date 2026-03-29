@@ -42,14 +42,15 @@
 |----------|------------|
 | [../iOSApp/ModularAppArchitecture.md](../iOSApp/ModularAppArchitecture.md) | Модульная структура Xcode-проекта |
 
-## Презентации и текстовые материалы (корень репозитория)
+## Презентации и материалы конференции
 
-| Файл | Назначение |
+| Путь | Назначение |
 |------|------------|
-| [../PROJECT_PRESENTATION.md](../PROJECT_PRESENTATION.md) | Краткое описание проекта для защиты / презентаций |
-| [../EXPORT_README.md](../EXPORT_README.md) | Экспорт `presentation.html` в PDF/PPTX |
-| `presentation.html`, `presentation_static.html` | Исходники слайдов |
-| `доклад_конференция_начальный_этап.md`, `план_доклада_конференция.md`, `тезисы_конференция.txt` | Тексты для конференции |
+| [presentation/PROJECT_PRESENTATION.md](presentation/PROJECT_PRESENTATION.md) | Краткое описание проекта для защиты / презентаций |
+| [presentation/EXPORT_README.md](presentation/EXPORT_README.md) | Экспорт `presentation.html` в PDF/PPTX |
+| [presentation/presentation.html](presentation/presentation.html), [presentation/presentation_static.html](presentation/presentation_static.html) | Исходники слайдов |
+| [presentation/доклад_конференция_начальный_этап.md](presentation/доклад_конференция_начальный_этап.md), [presentation/план_доклада_конференция.md](presentation/план_доклада_конференция.md), [presentation/тезисы_конференция.txt](presentation/тезисы_конференция.txt) | Тексты для конференции |
+| [../scripts/presentation/](../scripts/presentation/) | Скрипты: DOCX/PPTX, экспорт HTML→PDF/PPTX (`export_requirements.txt`) |
 
 ## Прочее
 

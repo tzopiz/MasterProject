@@ -7,6 +7,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 import os
+from pathlib import Path
 
 # --- Constants ---
 SLIDE_W = Inches(13.333)  # 16:9 widescreen
@@ -605,7 +606,9 @@ add_text_box(slide7, Inches(1), Inches(6.3), Inches(11.3), Inches(0.5),
 # ============================================================
 # SAVE
 # ============================================================
-output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "presentation.pptx")
+_repo_root = Path(__file__).resolve().parent.parent
+_pres_dir = _repo_root / "docs" / "presentation"
+output_path = str(_pres_dir / "presentation.pptx")
 prs.save(output_path)
 print(f"Presentation saved to: {output_path}")
 print(f"Slides: {len(prs.slides)}")
