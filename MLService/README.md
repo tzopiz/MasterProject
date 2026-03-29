@@ -27,7 +27,21 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 
 **Результат:** JSON файлы с координатами и вырезанные 3D кубы суставов в `data/auto_crops/`.
 
-### 3. Сегментация (Segmentation)
+### 3. Классификация положения (Position Classification)
+Предсказание положения головок ВНЧС (сагитталь + фронталь, лево + право).
+- **Метки:** `data/tmj_position_labels.json` (6 кодов, 4 метки на пациента).
+- **Обучение:** `train_tmj_position_classifier.py`.
+- **Модель:** `models/tmj_position_classifier.py`.
+- **Документация:** [docs/TMJ_POSITION_CLASSIFIER.md](docs/TMJ_POSITION_CLASSIFIER.md)
+
+```bash
+./venv/bin/python train_tmj_position_classifier.py \
+    --dataset-root data/dataset_cbct_public \
+    --labels-json data/tmj_position_labels.json \
+    --manifest-private data/dataset_cbct_public/manifest_private.json
+```
+
+### 4. Сегментация (Segmentation)
 Точное выделение костных структур внутри вырезанного кропа.
 - **Разметка:** Ручная разметка кропов в **ITK-SNAP**.
 - **Обучение:** `train_3d.py` (Обучает 3D U-Net на кропах).
