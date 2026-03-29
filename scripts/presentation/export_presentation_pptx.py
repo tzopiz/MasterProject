@@ -28,9 +28,10 @@ SLIDE_SELECTORS = [
 
 
 async def main():
-    root = Path(__file__).resolve().parent
-    html_path = root / "presentation.html"
-    pptx_path = root / "presentation.pptx"
+    repo_root = Path(__file__).resolve().parent.parent
+    pres_dir = repo_root / "docs" / "presentation"
+    html_path = pres_dir / "presentation.html"
+    pptx_path = pres_dir / "presentation.pptx"
 
     if not html_path.exists():
         print(f"Файл не найден: {html_path}")

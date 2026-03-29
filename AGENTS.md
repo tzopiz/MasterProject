@@ -31,10 +31,10 @@
 | Публичная CBCT-когорта (DOCX→метки, Яндекс.Диск, zip, датасет) | [docs/cbct-public-cohort-dataset.md](docs/cbct-public-cohort-dataset.md) |
 | API Backend | `Backend/Sources/App/Controllers/`, [Backend/README.md](Backend/README.md) |
 | Сеть iOS ↔ Backend | `iOSApp/.../AnalysisEndpoint.swift` (базовый URL и пути) |
-| Презентация / экспорт HTML→PDF | [EXPORT_README.md](EXPORT_README.md) |
-| Краткий питч проекта | [PROJECT_PRESENTATION.md](PROJECT_PRESENTATION.md) |
+| Презентация / экспорт HTML→PDF | [docs/presentation/EXPORT_README.md](docs/presentation/EXPORT_README.md) |
+| Краткий питч проекта | [docs/presentation/PROJECT_PRESENTATION.md](docs/presentation/PROJECT_PRESENTATION.md) |
 
 ## Репозиторий
 
-- В **git** не попадают личные и сгенерированные файлы из корня (см. `.gitignore`: `diplom.pdf`, `presentation.pdf`, часть `.docx` и т.д.).
+- В **git** не попадают личные и сгенерированные файлы (см. `.gitignore`: `diplom.pdf`, `docs/presentation/presentation.pdf`, часть `.docx` в `docs/presentation/` и т.д.).
 - Каталог `.cursor/` в репозитории не версионируется; локальные планы Cursor при клонировании могут отсутствовать.

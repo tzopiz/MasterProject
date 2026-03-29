@@ -13,8 +13,10 @@ try:
 except ImportError:
     raise SystemExit("Установите: pip install python-docx")
 
-MD_FILE = Path(__file__).parent / "доклад_конференция_начальный_этап.md"
-OUT_DOCX = Path(__file__).parent / "доклад_конференция.docx"
+_REPO = Path(__file__).resolve().parent.parent
+_PRES = _REPO / "docs" / "presentation"
+MD_FILE = _PRES / "доклад_конференция_начальный_этап.md"
+OUT_DOCX = _PRES / "доклад_конференция.docx"
 
 
 def set_run_font(run, size_pt: int, bold: bool = False):

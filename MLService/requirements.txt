@@ -6,8 +6,9 @@ pydicom>=3.0.0
 numpy>=2.1.0
 scikit-image>=0.24.0
 opencv-python>=4.10.0
-torch>=2.5.0
-torchvision>=0.20.0
+# Py 3.14 + macOS arm64: torch 2.9.x wheels were missing libtorch_cpu.dylib; use 2.11+
+torch>=2.11.0
+torchvision>=0.26.0
 Pillow>=11.0.0
 pydantic>=2.9.0
 aiofiles>=24.1.0

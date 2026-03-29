@@ -127,7 +127,9 @@ def main():
     add_bullet(doc, "Тон: подчёркивать постановку задачи, обоснование решений и достигнутые результаты; планы — короче.")
     add_bullet(doc, "Литература: 2–5 ключевых источников по образцу из тезисы_конференция.txt.")
 
-    out_path = Path(__file__).parent / "план_доклада_конференция.docx"
+    repo_root = Path(__file__).resolve().parent.parent
+    pres_dir = repo_root / "docs" / "presentation"
+    out_path = pres_dir / "план_доклада_конференция.docx"
     doc.save(str(out_path))
     print(f"Создан файл: {out_path}")
 

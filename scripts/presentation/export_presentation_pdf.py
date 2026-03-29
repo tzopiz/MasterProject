@@ -16,9 +16,10 @@ except ImportError:
 
 
 async def main():
-    root = Path(__file__).resolve().parent
-    html_path = root / "presentation.html"
-    pdf_path = root / "presentation.pdf"
+    repo_root = Path(__file__).resolve().parent.parent
+    pres_dir = repo_root / "docs" / "presentation"
+    html_path = pres_dir / "presentation.html"
+    pdf_path = pres_dir / "presentation.pdf"
 
     if not html_path.exists():
         print(f"Файл не найден: {html_path}")
