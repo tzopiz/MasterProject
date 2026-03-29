@@ -37,7 +37,7 @@ MasterProject/
 ├── Backend/           # Vapor, миграции Fluent, HTTP к MLService
 ├── MLService/         # FastAPI app.py, services/, models/, tools/, experiments/
 ├── iOSApp/            # Xcode: MasterDoctor и модули
-├── docs/              # Хаб документации (README.md); `presentation/` — HTML-слайды, конференция, EXPORT_README
+├── docs/              # Хаб документации (README.md); подкаталог presentation/ — слайды и конференция
 ├── scripts/
 │   └── presentation/  # create_* / export_* для DOCX и PDF/PPTX
 ├── examples/          # Примеры / вспомогательные данные
@@ -82,4 +82,4 @@ MasterProject/
 ## Соглашения репозитория
 
 - Секреты, большие веса и локальные артефакты не коммитятся (см. корневой `.gitignore`, `MLService/.gitignore`).
-- Личные PDF и сгенерированные офисные файлы в корне перечислены в `.gitignore`; источники — Markdown/HTML и скрипты.
+- Личные PDF и сгенерированные офисные файлы (в т.ч. в `docs/presentation/`) перечислены в `.gitignore`; источники — Markdown/HTML и скрипты в `scripts/presentation/`.
