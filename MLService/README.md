@@ -33,6 +33,7 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 - **Обучение:** `train_tmj_position_classifier.py`.
 - **Модель:** `models/tmj_position_classifier.py`.
 - **Документация:** [docs/TMJ_POSITION_CLASSIFIER.md](docs/TMJ_POSITION_CLASSIFIER.md)
+- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md) и сводка прогонов [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md)
 
 ```bash
 ./venv/bin/python train_tmj_position_classifier.py \
