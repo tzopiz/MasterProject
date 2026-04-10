@@ -70,14 +70,17 @@ class TestTMJBinaryPositionClassifierLoss:
         loss.backward()
 
         for name, param in model.named_parameters():
-            if param.grad is not None:
+            if param.requires_grad:
+                assert param.grad is not None, f"No gradient for {name}"
                 assert torch.isfinite(param.grad).all(), f"Non-finite grad in {name}"
 
 
 class TestTMJBinaryPositionClassifierParameters:
     def test_has_parameters(self):
         model = TMJBinaryPositionClassifier()
-        assert sum(p.numel() for p in model.parameters()) > 0
+        n = sum(p.numel() for p in model.parameters())
+        # Default config: features=[16,32,64,128], fc_hidden=256 → ~946k params
+        assert n > 900_000, f"Expected >900k params for default config, got {n}"
 
     def test_two_separate_heads(self):
         model = TMJBinaryPositionClassifier()
