@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader, Dataset
 import pydicom
 from scipy import ndimage
 
-from training.tmj_position_label_table import build_index, split_by_patient
+from training.tmj_position_label_table import build_index, binarize_labels, split_by_patient
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,22 @@ logger = logging.getLogger(__name__)
 DEFAULT_CROP = (96, 128, 128)  # (D, H, W)
 # Max random shift during training augmentation (voxels, in downsampled space)
 DEFAULT_SHIFT = 5
+
+
+# ------------------------------------------------------------------
+# Shared normalization utility
+# ------------------------------------------------------------------
+
+def _normalize_volume_percentile(volume: np.ndarray) -> np.ndarray:
+    """Clip to [2nd, 98th] percentile and scale to [0, 1]."""
+    p2, p98 = np.percentile(volume, [2, 98])
+    volume = np.clip(volume, p2, p98)
+    denom = p98 - p2
+    if denom > 0:
+        volume = (volume - p2) / denom
+    else:
+        volume = np.zeros_like(volume)
+    return volume.astype(np.float32)
 
 
 class TMJPositionClassificationDataset(Dataset):
@@ -113,14 +129,7 @@ class TMJPositionClassificationDataset(Dataset):
 
     def _normalize_volume(self, volume: np.ndarray) -> np.ndarray:
         """Clip to [2nd, 98th] percentile and scale to [0, 1]."""
-        p2, p98 = np.percentile(volume, [2, 98])
-        volume = np.clip(volume, p2, p98)
-        denom = p98 - p2
-        if denom > 0:
-            volume = (volume - p2) / denom
-        else:
-            volume = np.zeros_like(volume)
-        return volume.astype(np.float32)
+        return _normalize_volume_percentile(volume)
 
     # ------------------------------------------------------------------
     # Downsampling
@@ -304,14 +313,7 @@ class TMJBinaryPositionDataset(Dataset):
 
     def _normalize(self, volume: np.ndarray) -> np.ndarray:
         """Clip to [2nd, 98th] percentile, scale to [0, 1]."""
-        p2, p98 = np.percentile(volume, [2, 98])
-        volume = np.clip(volume, p2, p98)
-        denom = p98 - p2
-        if denom > 0:
-            volume = (volume - p2) / denom
-        else:
-            volume = np.zeros_like(volume)
-        return volume.astype(np.float32)
+        return _normalize_volume_percentile(volume)
 
     def __len__(self) -> int:
         return len(self.records)
@@ -358,8 +360,6 @@ def get_binary_position_dataloaders(
     Returns:
         (train_loader, val_loader)
     """
-    from training.tmj_position_label_table import binarize_labels
-
     all_records = build_index(
         manifest_path=manifest_path,
         labels_path=labels_path,
