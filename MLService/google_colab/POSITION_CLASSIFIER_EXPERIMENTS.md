@@ -12,6 +12,7 @@
 | **v3** | тот же ноутбук | Взвешенный CE + label smoothing, аугментации, уменьшенная 3D-сеть; переобучение снизилось, **потолок mean acc ~0.734** сохранился |
 | **v4** | `train_position_classifier_2d.ipynb` | 2D multi-view: frozen ResNet18 + классика (C) и fine-tune (A); **не превзошли ~0.734** на том же сплите |
 | **v5** | `train_position_classifier_2d.ipynb`, секция 4b | Бинарные метки + multi-slice фичи + 5-fold CV по пациентам + PCA+SVM grid + ансамбль; отчёт в `training_analysis_v5.json` |
+| **v6 (A+B)** | `train_binary_position_classifier.ipynb` | **Подход A:** детектор-кропы NIfTI 128³ (точный ROI вместо центрального кропа). **Подход B:** `BinaryFocalLoss(γ=2, α=auto)` + порог по Youden's J. Обучение на DataSphere V100. Baseline: mean acc ~0.68, коллапс сагиттали. |
 
 ---
 
