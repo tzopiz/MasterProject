@@ -6,6 +6,7 @@ import json
 import sys
 import os
 import pytest
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -83,12 +84,14 @@ class TestBinarizeLabels:
         binary = binarize_labels(records, str(tmp_path))
         r = next(r for r in binary if r["study_id"] == "study_0002" and r["side"] == "right")
         assert r["sag"] == 1   # original sag_right=2
+        assert r["fr"] == 1    # original fr_right=1 (non-central)
 
     def test_crop_path_contains_study_and_side(self, records, tmp_path):
         binary = binarize_labels(records, str(tmp_path))
         r = next(r for r in binary if r["study_id"] == "study_0001" and r["side"] == "left")
-        assert "study_0001" in r["crop_path"]
-        assert "study_0001_left.nii.gz" in r["crop_path"]
+        p = Path(r["crop_path"])
+        assert p.name == "study_0001_left.nii.gz"
+        assert p.parent.name == "study_0001"
 
     def test_patient_name_preserved(self, records, tmp_path):
         binary = binarize_labels(records, str(tmp_path))

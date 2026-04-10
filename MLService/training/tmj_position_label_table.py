@@ -202,7 +202,7 @@ def binarize_labels(records: List[Dict], crop_dir: str) -> List[Dict]:
             fr          – 0 (central) or 1 (non-central)
             crop_path   – absolute path to the NIfTI crop file
     """
-    crop_dir = Path(crop_dir)
+    crop_dir = Path(crop_dir).resolve()
     binary_records: List[Dict] = []
 
     for rec in records:
