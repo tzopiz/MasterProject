@@ -30,15 +30,43 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 ### 3. Классификация положения (Position Classification)
 Предсказание положения головок ВНЧС (сагитталь + фронталь, лево + право).
 - **Метки:** `data/tmj_position_labels.json` (6 кодов, 4 метки на пациента).
-- **Обучение:** `train_tmj_position_classifier.py`.
-- **Модель:** `models/tmj_position_classifier.py`.
 - **Документация:** [docs/TMJ_POSITION_CLASSIFIER.md](docs/TMJ_POSITION_CLASSIFIER.md)
+- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md) и сводка прогонов [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md)
+
+#### 3-классовый (v1–v4, baseline)
+- **Обучение:** `train_tmj_position_classifier.py`
+- **Модель:** `models/tmj_position_classifier.py` — 4 головы × 3 класса (central / anterior / posterior)
 
 ```bash
 ./venv/bin/python train_tmj_position_classifier.py \
     --dataset-root data/dataset_cbct_public \
     --labels-json data/tmj_position_labels.json \
     --manifest-private data/dataset_cbct_public/manifest_private.json
+```
+
+#### Бинарный (v6, Approach A+B)
+- **Обучение:** `train_binary_position_classifier.py` или ноутбук `google_colab/train_binary_position_classifier.ipynb`
+- **Модель:** `models/tmj_binary_position_classifier.py` — 2 головы × 1 логит (central vs non-central)
+- **Loss:** `training/losses/focal_loss.py` — `BinaryFocalLoss(γ=2, α=auto)`
+- **Подход A:** NIfTI-кропы от детектора (128³) вместо центрального кропа DICOM
+- **Подход B:** `BinaryFocalLoss` + калибровка порога по Youden's J на val ROC
+
+```bash
+# Шаг 1: сгенерировать кропы
+./venv/bin/python tools/auto_crop_from_detector.py \
+    --model experiments/detector_20251126_003305/best_model.pth \
+    --input data/dataset_cbct_public --output data/detector_crops \
+    --crop_size 128 --batch --format nifti
+
+# Шаг 2: обучить
+./venv/bin/python train_binary_position_classifier.py \
+    --crop-dir data/detector_crops \
+    --labels-json data/tmj_position_labels.json \
+    --manifest-private data/dataset_cbct_public/manifest_private.json \
+    --dataset-root data/dataset_cbct_public
+
+# Шаг 3: проверить кропы визуально
+./venv/bin/python tools/visualize_crops.py
 ```
 
 ### 4. Сегментация (Segmentation)
