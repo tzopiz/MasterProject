@@ -175,3 +175,52 @@ def split_by_patient(
         len(val_records), len(val_patients),
     )
     return train_records, val_records
+
+
+# ---------------------------------------------------------------------------
+# Binarize labels
+# ---------------------------------------------------------------------------
+
+def binarize_labels(records: List[Dict], crop_dir: str) -> List[Dict]:
+    """
+    Explode 4-head multi-class records into side-specific binary records.
+
+    Each input record produces 2 output records (left + right).
+    Labels are binarized: class 0 (central) → 0, classes 1 or 2 → 1 (non-central).
+
+    Args:
+        records:  Output of build_index().
+        crop_dir: Root directory containing detector-generated NIfTI crops,
+                  structured as {crop_dir}/{study_id}/{study_id}_{side}.nii.gz
+
+    Returns:
+        List of dicts with keys:
+            study_id    – e.g. "study_0001"
+            patient_name
+            side        – "left" | "right"
+            sag         – 0 (central) or 1 (non-central)
+            fr          – 0 (central) or 1 (non-central)
+            crop_path   – absolute path to the NIfTI crop file
+    """
+    crop_dir = Path(crop_dir)
+    binary_records: List[Dict] = []
+
+    for rec in records:
+        study_id = rec["study_id"]
+        patient_name = rec["patient_name"]
+
+        for side in ("left", "right"):
+            sag_val = rec[f"sag_{side}"]
+            fr_val = rec[f"fr_{side}"]
+
+            binary_records.append({
+                "study_id": study_id,
+                "patient_name": patient_name,
+                "side": side,
+                "sag": 0 if sag_val == 0 else 1,
+                "fr": 0 if fr_val == 0 else 1,
+                "crop_path": str(crop_dir / study_id / f"{study_id}_{side}.nii.gz"),
+            })
+
+    logger.info("binarize_labels: %d records → %d binary side-records", len(records), len(binary_records))
+    return binary_records
