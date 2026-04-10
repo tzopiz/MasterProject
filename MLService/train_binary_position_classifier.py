@@ -124,6 +124,8 @@ def train_epoch(model, loader, criteria, optimizer, device, epoch):
         running_loss += loss.item()
         pbar.set_postfix({"loss": f"{loss.item():.4f}", "acc": f"{m['mean_accuracy']:.3f}"})
 
+    if not all_metrics:
+        raise RuntimeError(f"No batches processed in train epoch {epoch}. Check your dataloader.")
     avg = {k: float(np.mean([m[k] for m in all_metrics])) for k in all_metrics[0]}
     avg["loss"] = running_loss / len(loader)
     return avg
@@ -150,6 +152,8 @@ def validate_epoch(model, loader, criteria, device, epoch):
             running_loss += loss.item()
             pbar.set_postfix({"loss": f"{loss.item():.4f}", "acc": f"{m['mean_accuracy']:.3f}"})
 
+    if not all_metrics:
+        raise RuntimeError(f"No batches processed in val epoch {epoch}. Check your dataloader.")
     avg = {k: float(np.mean([m[k] for m in all_metrics])) for k in all_metrics[0]}
     avg["loss"] = running_loss / len(loader)
     return avg
@@ -350,7 +354,7 @@ def main(args):
     # Load best model for threshold calibration
     logger.info("\n" + "=" * 70)
     logger.info("Calibrating thresholds on val set …")
-    ckpt = torch.load(exp_dir / "best_model.pth", map_location=device)
+    ckpt = torch.load(exp_dir / "best_model.pth", map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
 
     calibration = calibrate_thresholds(model, val_loader, device)
