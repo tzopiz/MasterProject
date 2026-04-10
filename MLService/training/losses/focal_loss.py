@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Binary Focal Loss
 
@@ -45,6 +44,8 @@ class BinaryFocalLoss(nn.Module):
         self.gamma = gamma
         self.alpha = alpha
         self.reduction = reduction
+        if reduction not in ("mean", "sum", "none"):
+            raise ValueError(f"reduction must be 'mean', 'sum', or 'none'; got {reduction!r}")
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """

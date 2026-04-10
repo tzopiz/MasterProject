@@ -77,3 +77,23 @@ class TestBinaryFocalLossAlpha:
         targets = torch.tensor([1.0, 0.0, 0.0, 1.0])
         loss = loss_fn(logits, targets)
         assert torch.isfinite(loss)
+
+
+class TestBinaryFocalLossReduction:
+    def test_reduction_none_returns_per_sample_tensor(self):
+        loss_fn = BinaryFocalLoss(reduction="none")
+        logits = torch.randn(6)
+        targets = torch.randint(0, 2, (6,)).float()
+        loss = loss_fn(logits, targets)
+        assert loss.shape == (6,), f"Expected (6,), got {loss.shape}"
+
+    def test_reduction_sum_equals_none_sum(self):
+        loss_fn_sum = BinaryFocalLoss(reduction="sum")
+        loss_fn_none = BinaryFocalLoss(reduction="none")
+        logits = torch.tensor([0.5, -0.5, 1.0, -1.0])
+        targets = torch.tensor([1.0, 0.0, 1.0, 0.0])
+        assert torch.isclose(loss_fn_sum(logits, targets), loss_fn_none(logits, targets).sum(), atol=1e-5)
+
+    def test_invalid_reduction_raises(self):
+        with pytest.raises(ValueError, match="reduction"):
+            BinaryFocalLoss(reduction="average")
