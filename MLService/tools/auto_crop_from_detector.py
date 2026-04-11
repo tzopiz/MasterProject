@@ -105,13 +105,14 @@ def load_detector(model_path: str, device: str = 'mps') -> Tuple[torch.nn.Module
     model.eval()
     model.to(device)
 
-    logger.info(f"Model loaded from epoch {checkpoint['epoch']}")
+    epoch = checkpoint.get('epoch', -1)
+    logger.info(f"Model loaded from epoch {epoch}")
 
-    return model, checkpoint['epoch']
+    return model, epoch
 
 
 def predict_tmj_coords(
-    model: TMJDetector,
+    model: torch.nn.Module,
     volume: np.ndarray,
     downsample_factor: int = 6,
     device: str = 'mps'
@@ -254,7 +255,7 @@ def save_crop_as_nifti(crop: np.ndarray, output_path: Path):
 
 def process_study(
     study_path: Path,
-    model: TMJDetector,
+    model: torch.nn.Module,
     output_dir: Path,
     crop_size: int = 128,
     downsample_factor: int = 6,
