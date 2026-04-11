@@ -249,7 +249,9 @@ class ROIAnnotationTool:
         
         elif event == cv2.EVENT_MOUSEWHEEL:
             # Scroll through slices
-            delta = 1 if flags > 0 else -1
+            # Interpret flags as signed 32-bit (macOS may pass unsigned)
+            signed_flags = flags if flags < 0x80000000 else flags - 0x100000000
+            delta = 1 if signed_flags > 0 else -1
             self.current_slice = np.clip(
                 self.current_slice + delta,
                 0,
@@ -426,9 +428,27 @@ STATUS:
             elif key == ord('+') or key == ord('='):  # Brightness up
                 self.brightness = min(self.brightness + 0.1, 2.0)
                 self.update_display()
-            
+
             elif key == ord('-') or key == ord('_'):  # Brightness down
                 self.brightness = max(self.brightness - 0.1, 0.0)
+                self.update_display()
+
+            elif key == ord('d') or key == 83:  # D or → : next slice
+                self.current_slice = min(self.current_slice + 1,
+                                         self.original_shape[0] - 1)
+                self.update_display()
+
+            elif key == ord('a') or key == 81:  # A or ← : previous slice
+                self.current_slice = max(self.current_slice - 1, 0)
+                self.update_display()
+
+            elif key == ord('D'):  # Shift+D : next 10 slices
+                self.current_slice = min(self.current_slice + 10,
+                                         self.original_shape[0] - 1)
+                self.update_display()
+
+            elif key == ord('A'):  # Shift+A : previous 10 slices
+                self.current_slice = max(self.current_slice - 10, 0)
                 self.update_display()
         
         cv2.destroyAllWindows()
