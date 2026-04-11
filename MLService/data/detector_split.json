@@ -1,0 +1,47 @@
+{
+  "seed": 42,
+  "total": 37,
+  "train": [
+    "study_0006",
+    "study_0021",
+    "study_0013",
+    "study_0010",
+    "study_0023",
+    "study_0027",
+    "study_0028",
+    "study_0005",
+    "study_0025",
+    "study_0030",
+    "study_0034",
+    "study_0032",
+    "study_0033",
+    "study_0011",
+    "study_0012",
+    "study_0020",
+    "study_0029",
+    "study_0017",
+    "study_0037",
+    "study_0007",
+    "study_0026",
+    "study_0001",
+    "study_0036",
+    "study_0014",
+    "study_0019",
+    "study_0003",
+    "study_0035",
+    "study_0031",
+    "study_0022",
+    "study_0004"
+  ],
+  "val": [
+    "study_0024",
+    "study_0009",
+    "study_0015",
+    "study_0016",
+    "study_0018"
+  ],
+  "test": [
+    "study_0002",
+    "study_0008"
+  ]
+}
