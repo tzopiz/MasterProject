@@ -31,10 +31,13 @@ def _load_dicom_volume(study_dir: Path) -> np.ndarray:
     if not files:
         raise FileNotFoundError(f"No .dcm in {study_dir}")
     slices = [pydicom.dcmread(str(f)) for f in files]
+    # Sort by InstanceNumber (top→bottom) to match roi_annotation_tool.py.
+    # ImagePositionPatient[2] ascending would reverse the order and break
+    # the z-coordinates stored in *_rois.json annotations.
     try:
-        slices.sort(key=lambda s: float(s.ImagePositionPatient[2]))
+        slices.sort(key=lambda s: float(s.InstanceNumber))
     except Exception:
-        slices.sort(key=lambda s: int(s.InstanceNumber))
+        slices.sort(key=lambda s: float(s.ImagePositionPatient[2]))
     planes = []
     for s in slices:
         arr = s.pixel_array.astype(np.float32)
