@@ -219,26 +219,30 @@ class ROIAnnotationTool:
         bar = np.zeros((56, combined.shape[1], 3), dtype=np.uint8)
 
         if self.stage == STAGE_LEFT:
-            stage_txt = "ШАग 1/2: поставь LEFT сустав (зелёный)  →  S для перехода к правому"
+            stage_txt = "ШАГ 1/2: поставь LEFT сустав (зелёный) — S: перейти к правому"
             col = COL_LEFT
+            ctrl = "A/D:срез  S:зафиксировать LEFT  U:отменить точку  +/-:яркость  Q:выход"
         elif self.stage == STAGE_RIGHT:
-            stage_txt = "ШАГИ 2/2: поставь RIGHT сустав (синий)  →  S для сохранения и превью"
+            stage_txt = "ШАГ 2/2: поставь RIGHT сустав (синий) — S: сохранить и показать превью"
             col = COL_RIGHT
+            ctrl = "A/D:срез  S:сохранить  U:отменить точку  +/-:яркость  Q:выход"
         else:
-            stage_txt = "ПРЕВЬЮ: проверь оба сустава  →  S для подтверждения и выхода"
+            stage_txt = "ПРЕВЬЮ: проверь оба сустава — S: выход  |  E: редактировать заново"
             col = (220, 220, 100)
+            ctrl = "S:выход  E:редактировать  A/D:срез  +/-:яркость  Q:выход"
 
         cv2.putText(bar, stage_txt, (10, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, col, 1, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.52, col, 1, cv2.LINE_AA)
 
-        status = (f"Scan: {self.scan_id}  |  "
-                  f"L={'✓' if self.left_tmj else '–'}  "
-                  f"R={'✓' if self.right_tmj else '–'}  |  "
-                  f"Done: {self.annotated_count}")
+        lz = self.left_tmj[0]  if self.left_tmj  else '-'
+        rz = self.right_tmj[0] if self.right_tmj else '-'
+        status = (f"{self.scan_id}  |  "
+                  f"L: {'z='+str(lz) if self.left_tmj else '—'}  "
+                  f"R: {'z='+str(rz) if self.right_tmj else '—'}  |  "
+                  f"Готово: {self.annotated_count}")
         cv2.putText(bar, status, (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 180, 180), 1, cv2.LINE_AA)
-        controls = "A/D:срез  S:следующий шаг  U:отмена точки  +/-:яркость  Q:выход"
-        cv2.putText(bar, controls, (10, 54),
+        cv2.putText(bar, ctrl, (10, 54),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.38, (120, 120, 120), 1)
 
         return np.vstack([combined, bar])
@@ -392,12 +396,21 @@ class ROIAnnotationTool:
                 if self._handle_s():
                     break
 
+            elif key == ord('e'):
+                # E: enter edit mode from PREVIEW (re-annotate from scratch)
+                if self.stage == STAGE_PREVIEW:
+                    self.stage = STAGE_LEFT
+                    self.left_tmj  = None
+                    self.right_tmj = None
+                    logger.info("Режим редактирования — поставь LEFT заново")
+                    self.update_display()
+
             elif key == ord('u'):
                 if self.stage == STAGE_LEFT:
                     self.left_tmj = None
                 elif self.stage == STAGE_RIGHT:
                     self.right_tmj = None
-                # PREVIEW: no undo
+                # PREVIEW: no undo (use E to re-edit)
                 self.update_display()
 
             elif key in (ord('+'), ord('=')):
