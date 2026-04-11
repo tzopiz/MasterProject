@@ -74,6 +74,22 @@ class ROIAnnotationTool:
         self.annotated_count = len(list(self.output_dir.glob("*_rois.json")))
         logger.info(f"Found {self.annotated_count} existing annotations")
 
+    def _load_existing_annotation(self):
+        """Load previously saved annotation for this scan if it exists."""
+        ann_file = self.output_dir / f"{self.scan_id}_rois.json"
+        if not ann_file.exists():
+            return
+        try:
+            with open(ann_file) as f:
+                data = json.load(f)
+            self.left_tmj  = data["left_tmj"]["center"]   # [z, y, x]
+            self.right_tmj = data["right_tmj"]["center"]
+            # Jump to the annotated slice
+            self.current_slice = self.left_tmj[0]
+            logger.info(f"Loaded existing annotation: L={self.left_tmj}  R={self.right_tmj}")
+        except Exception as e:
+            logger.warning(f"Could not load existing annotation: {e}")
+
     # ------------------------------------------------------------------ #
     #  DICOM loading                                                        #
     # ------------------------------------------------------------------ #
@@ -342,6 +358,7 @@ class ROIAnnotationTool:
             return
 
         self.current_slice = self.original_shape[0] // 2
+        self._load_existing_annotation()   # ← показать сохранённые точки
 
         cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
         # Resize window to show all 3 panels
