@@ -1,0 +1,18 @@
+{
+  "left": {
+    "best_val_mae": 1.9696698486804962,
+    "best_epoch": 94
+  },
+  "right": {
+    "best_val_mae": 1.3902070671319962,
+    "best_epoch": 17
+  },
+  "model": "TMJHeatmapDetector_single_joint",
+  "target_shape": [
+    96,
+    128,
+    128
+  ],
+  "sigma": 6.0,
+  "heatmap": true
+}
