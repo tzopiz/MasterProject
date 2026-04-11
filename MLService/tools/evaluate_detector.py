@@ -70,17 +70,31 @@ def main(args):
     model.load_state_dict(ckpt["model_state_dict"])
     print(f"Loaded model from epoch {ckpt['epoch']} (val MAE={ckpt['best_val_mae']:.2f} ds px)")
 
+    # Read training config to recover downsample_factor and sigma
+    config_path = Path(args.model).parent / "config.json"
+    ds_factor = 6
+    sigma = 3.0
+    if config_path.exists():
+        with open(config_path) as fc:
+            cfg = json.load(fc)
+        ds_factor = int(cfg.get("downsample_factor", 6))
+        sigma = float(cfg.get("sigma", 3.0))
+        print(f"Config loaded: downsample_factor={ds_factor}, sigma={sigma}")
+    else:
+        print("No config.json found, using defaults: downsample_factor=6, sigma=3.0")
+
     with open(args.split) as f:
         split = json.load(f)
 
     test_ds = TMJHeatmapDataset(
         split["test"], args.annotations,
         dataset_dir=args.dataset, is_train=False,
+        sigma=sigma, downsample_factor=ds_factor,
     )
     loader = DataLoader(test_ds, batch_size=1, shuffle=False)
     print(f"Test set: {len(test_ds)} studies")
 
-    results = evaluate(model, loader, device, ds_factor=6, voxel_mm=args.voxel_mm)
+    results = evaluate(model, loader, device, ds_factor=ds_factor, voxel_mm=args.voxel_mm)
 
     print("\n=== TEST RESULTS ===")
     print(f"  MAE left  (ds px):     {results['mae_left_ds']:.2f}")
