@@ -144,10 +144,20 @@ class TMJHeatmapDataset(Dataset):
         if volume_loader is not None:
             self._load_volume = volume_loader
         else:
+            # Auto-detect: if data/heatmap_volumes/<id>.npy exists → load it
+            # (fast, no DICOM, pre-processed for DataSphere).
+            # Otherwise fall back to full DICOM loading.
+            volumes_dir = Path(dataset_dir).parent / "heatmap_volumes"
+
             def _loader(study_id: str) -> np.ndarray:
+                npy_path = volumes_dir / f"{study_id}.npy"
+                if npy_path.exists():
+                    vol = np.load(str(npy_path)).astype(np.float32) / 255.0
+                    return vol
                 raw = _load_dicom_volume(self.dataset_dir / study_id)
                 normalized = _normalize(raw)
                 return _downsample(normalized, downsample_factor)
+
             self._load_volume = _loader
 
         self.records: List[Dict] = []
