@@ -73,7 +73,7 @@ def _augment(
     # 3. X-axis flip → swap left/right + flip x coordinate
     if random.random() < 0.5:
         volume = np.flip(volume, axis=2).copy()
-        ds_W = DOWNSAMPLE_SHAPE[2]
+        ds_W = volume.shape[2]
         left_new  = [right_orig[0], right_orig[1], (ds_W - 1 - right_orig[2] // 6) * 6]
         right_new = [left_orig[0],  left_orig[1],  (ds_W - 1 - left_orig[2] // 6) * 6]
         left_orig, right_orig = left_new, right_new
@@ -87,12 +87,14 @@ def _augment(
         centers = [D / 2, H / 2, W / 2]
         a, b = axes
         c = np.cos(np.radians(angle)); s = np.sin(np.radians(angle))
+        dim_sizes = [D * 6, H * 6, W * 6]  # back to original space
         for orig in (left_orig, right_orig):
             da = (orig[a] / 6 - centers[a])
             db = (orig[b] / 6 - centers[b])
             orig[a] = int((da * c - db * s + centers[a]) * 6)
             orig[b] = int((da * s + db * c + centers[b]) * 6)
-            orig[a] = max(0, orig[a]); orig[b] = max(0, orig[b])
+            orig[a] = min(max(0, orig[a]), dim_sizes[a] - 1)
+            orig[b] = min(max(0, orig[b]), dim_sizes[b] - 1)
 
     return volume.astype(np.float32), left_orig, right_orig
 
