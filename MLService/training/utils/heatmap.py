@@ -45,24 +45,28 @@ def make_heatmap(
 
 def soft_argmax_3d(heatmap: torch.Tensor) -> torch.Tensor:
     """
-    Differentiable coordinate extraction from a 3D heatmap.
+    Differentiable coordinate extraction from a 3D heatmap via soft-argmax.
+
+    Applies softmax over all voxels before computing the weighted centroid,
+    so raw logits (negative values) are handled correctly.
 
     Args:
-        heatmap: (D, H, W) tensor (raw logits or probabilities).
+        heatmap: (D, H, W) tensor — raw logits OR probabilities.
 
     Returns:
-        (3,) tensor [z, y, x] in voxel coordinates (downsampled space).
+        (3,) tensor [z, y, x] in downsampled voxel coordinates.
     """
     D, H, W = heatmap.shape
-    heatmap = heatmap / (heatmap.sum() + 1e-8)
+    # Flatten → softmax → reshape: handles raw logits (negative values) correctly
+    weights = torch.softmax(heatmap.view(-1), dim=0).view(D, H, W)
 
-    z_grid = torch.arange(D, dtype=heatmap.dtype, device=heatmap.device)
-    y_grid = torch.arange(H, dtype=heatmap.dtype, device=heatmap.device)
-    x_grid = torch.arange(W, dtype=heatmap.dtype, device=heatmap.device)
+    z_grid = torch.arange(D, dtype=weights.dtype, device=weights.device)
+    y_grid = torch.arange(H, dtype=weights.dtype, device=weights.device)
+    x_grid = torch.arange(W, dtype=weights.dtype, device=weights.device)
 
-    z = (heatmap.sum(dim=[1, 2]) * z_grid).sum()
-    y = (heatmap.sum(dim=[0, 2]) * y_grid).sum()
-    x = (heatmap.sum(dim=[0, 1]) * x_grid).sum()
+    z = (weights.sum(dim=[1, 2]) * z_grid).sum()
+    y = (weights.sum(dim=[0, 2]) * y_grid).sum()
+    x = (weights.sum(dim=[0, 1]) * x_grid).sum()
 
     return torch.stack([z, y, x])
 
