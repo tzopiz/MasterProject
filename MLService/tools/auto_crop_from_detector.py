@@ -33,6 +33,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from models.tmj_detector import TMJDetector, get_detector_model
 # from training.datasets.tmj_detector_dataset import load_dicom_volume, preprocess_volume
+from models.tmj_heatmap_detector import TMJHeatmapDetector
+from training.utils.heatmap import coords_from_heatmap as _hm_coords
 
 
 logging.basicConfig(
@@ -68,36 +70,43 @@ def preprocess_volume(volume: np.ndarray) -> np.ndarray:
     return volume
 
 
-def load_detector(model_path: str, device: str = 'mps') -> Tuple[TMJDetector, int]:
-    """Load trained detector model."""
+def load_detector(model_path: str, device: str = 'mps') -> Tuple[torch.nn.Module, int]:
+    """Load trained detector model (regression or heatmap)."""
     logger.info(f"Loading detector from {model_path}")
-    
+
     checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
-    
-    # Try to detect model type from config
-    model_type = 'large'  # Default to large
-    
+
+    # Read config.json from the same directory
     model_path_obj = Path(model_path)
     config_path = model_path_obj.parent / 'config.json'
-    
+
+    config = {}
     if config_path.exists():
         try:
             with open(config_path, 'r') as f:
                 config = json.load(f)
-                model_type = config.get('model_type', 'large')
-                logger.info(f"Detected model type from config: {model_type}")
+            logger.info(f"Loaded config from {config_path}")
         except Exception as e:
-            logger.warning(f"Could not read config: {e}, using default 'large'")
-    
-    # Create model
-    model = get_detector_model(model_type=model_type)
+            logger.warning(f"Could not read config: {e}, using defaults")
+
+    if config.get('heatmap', False):
+        # Heatmap 3-D U-Net model
+        logger.info("Detected heatmap model (TMJHeatmapDetector)")
+        model = TMJHeatmapDetector()
+        model._is_heatmap = True
+    else:
+        # Legacy coordinate-regression model
+        model_type = config.get('model_type', 'large')
+        logger.info(f"Detected regression model, type={model_type}")
+        model = get_detector_model(model_type=model_type)
+        model._is_heatmap = False
+
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     model.to(device)
-    
+
     logger.info(f"Model loaded from epoch {checkpoint['epoch']}")
-    logger.info(f"Best Val MAE: {checkpoint['best_val_mae']:.2f} px")
-    
+
     return model, checkpoint['epoch']
 
 
@@ -141,32 +150,44 @@ def predict_tmj_coords(
     
     # Predict
     with torch.no_grad():
-        pred = model(volume_tensor)  # (1, 6)
-    
-    # Convert to numpy
-    pred = pred.cpu().numpy()[0]  # (6,)
-    
-    # Unnormalize (from [0, 1] to original downsampled size)
-    pred_coords = np.array([
-        pred[0] * new_D,  # left_z
-        pred[1] * new_H,  # left_y
-        pred[2] * new_W,  # left_x
-        pred[3] * new_D,  # right_z
-        pred[4] * new_H,  # right_y
-        pred[5] * new_W,  # right_x
-    ])
-    
-    # Upscale to original resolution
-    pred_coords[[0, 3]] *= downsample_factor  # Z
-    pred_coords[[1, 4]] *= downsample_factor  # Y
-    pred_coords[[2, 5]] *= downsample_factor  # X
-    
-    # Round to integers
-    pred_coords = pred_coords.astype(int)
-    
+        pred = model(volume_tensor)
+
+    if getattr(model, '_is_heatmap', False):
+        # pred: (1, 2, D, H, W) — ch0=left, ch1=right
+        hm_left  = torch.sigmoid(pred[0, 0])
+        hm_right = torch.sigmoid(pred[0, 1])
+        _, left_orig  = _hm_coords(hm_left,  downsample_factor)
+        _, right_orig = _hm_coords(hm_right, downsample_factor)
+        left_coords  = left_orig.cpu().numpy().astype(int)
+        right_coords = right_orig.cpu().numpy().astype(int)
+    else:
+        # Legacy regression model — pred: (1, 6)
+        pred = pred.cpu().numpy()[0]  # (6,)
+
+        # Unnormalize (from [0, 1] to original downsampled size)
+        pred_coords = np.array([
+            pred[0] * new_D,  # left_z
+            pred[1] * new_H,  # left_y
+            pred[2] * new_W,  # left_x
+            pred[3] * new_D,  # right_z
+            pred[4] * new_H,  # right_y
+            pred[5] * new_W,  # right_x
+        ])
+
+        # Upscale to original resolution
+        pred_coords[[0, 3]] *= downsample_factor  # Z
+        pred_coords[[1, 4]] *= downsample_factor  # Y
+        pred_coords[[2, 5]] *= downsample_factor  # X
+
+        # Round to integers
+        pred_coords = pred_coords.astype(int)
+
+        left_coords  = pred_coords[:3]
+        right_coords = pred_coords[3:]
+
     return {
-        'left': pred_coords[:3],
-        'right': pred_coords[3:]
+        'left': left_coords,
+        'right': right_coords
     }
 
 
