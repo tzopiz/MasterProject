@@ -87,8 +87,8 @@ def main():
 
         result = subprocess.run(
             [sys.executable, str(TOOL),
-             "--dicom-dir", str(dicom_dir),
-             "--output",    str(ann_dir)],
+             str(dicom_dir),
+             "--output", str(ann_dir)],
         )
 
         # Check if annotation was saved
