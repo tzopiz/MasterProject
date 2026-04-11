@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 """
-ROI Annotation Tool for TMJ Detection Dataset
+ROI Annotation Tool for TMJ Detection Dataset — MPR view
 
-Быстрый инструмент для разметки координат центров ВНЧС (левого и правого)
-на полных DICOM сканах для обучения детектора.
+Трёхпанельное отображение: Axial | Coronal | Sagittal.
+Клик работает в любом из трёх видов.
+Перекрестия показывают позицию аннотации во всех плоскостях.
 
 Usage:
     python tools/roi_annotation_tool.py <dicom_dir> --output annotations/
-    
+
 Controls:
-    - Left Click: Поставить точку
-    - Mouse Wheel: Навигация по срезам
-    - 'L': Режим "Left TMJ"
-    - 'R': Режим "Right TMJ"
-    - 'S': Сохранить аннотацию
-    - 'N': Следующий скан (Next)
-    - 'U': Отменить последнюю точку (Undo)
-    - 'Q': Выход
-    - 'H': Показать помощь
+    Left Click       : Поставить точку (в любом из трёх видов)
+    Mouse Wheel      : Навигация по Axial срезам
+    A / ←            : Предыдущий Axial срез
+    D / →            : Следующий Axial срез
+    Shift+A          : −10 срезов
+    Shift+D          : +10 срезов
+    L                : Режим Left TMJ
+    R                : Режим Right TMJ
+    S                : Сохранить аннотацию
+    U                : Отменить последнюю точку
+    + / -            : Яркость
+    Q / ESC          : Выход
 """
 
 import sys
@@ -26,468 +30,408 @@ from pathlib import Path
 import json
 import logging
 from datetime import datetime
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, List
 
 import numpy as np
 import cv2
 import pydicom
 from tqdm import tqdm
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Each panel is rendered at this size
+PANEL_H = 512
+PANEL_W = 512
+
+# Annotation colours (BGR)
+COL_LEFT  = (0,   220,   0)   # green
+COL_RIGHT = (220,   0,   0)   # blue
+COL_CROSS = (180, 180,   0)   # yellow crosshair
 
 
 class ROIAnnotationTool:
-    """Interactive tool for annotating TMJ ROI centers"""
-    
+    """Interactive MPR tool for annotating TMJ ROI centers."""
+
     def __init__(self, dicom_dir: str, output_dir: str):
-        self.dicom_dir = Path(dicom_dir)
+        self.dicom_dir  = Path(dicom_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # State
-        self.volume = None
-        self.current_slice = 0
-        self.scan_id = None
-        self.original_shape = None
-        
-        # Annotations
-        self.left_tmj = None  # [z, y, x]
-        self.right_tmj = None  # [z, y, x]
-        self.current_mode = "left"  # "left" or "right"
-        
-        # Display
-        self.window_name = "ROI Annotation Tool"
-        self.display_scale = 1.0
+
+        self.volume        = None
+        self.current_slice = 0       # axial (Z) slice
+        self.scan_id       = None
+        self.original_shape = None   # (D, H, W)
+
+        self.left_tmj  = None        # [z, y, x] in original voxel space
+        self.right_tmj = None
+        self.current_mode = "left"
+
         self.brightness = 1.0
-        self.contrast = 1.0
-        
-        # Stats
-        self.annotated_count = 0
-        self.load_existing_annotations()
-        
-    def load_existing_annotations(self):
-        """Count how many scans already annotated"""
-        if self.output_dir.exists():
-            self.annotated_count = len(list(self.output_dir.glob("*_rois.json")))
-            logger.info(f"Found {self.annotated_count} existing annotations")
-    
+        self.window_name = "ROI Annotation Tool — MPR"
+
+        self.annotated_count = len(list(self.output_dir.glob("*_rois.json")))
+        logger.info(f"Found {self.annotated_count} existing annotations")
+
+    # ------------------------------------------------------------------ #
+    #  DICOM loading                                                        #
+    # ------------------------------------------------------------------ #
+
     def load_dicom_series(self, dicom_dir: Path) -> np.ndarray:
-        """Load DICOM series into 3D numpy array"""
-        logger.info(f"Loading DICOM series from {dicom_dir}")
-        
-        # Find all DICOM files
         dicom_files = []
-        for root, dirs, files in os.walk(dicom_dir):
-            for file in files:
-                filepath = Path(root) / file
+        for root, _, files in os.walk(dicom_dir):
+            for f in files:
+                fp = Path(root) / f
                 try:
-                    pydicom.dcmread(filepath, stop_before_pixels=True)
-                    dicom_files.append(filepath)
-                except:
+                    pydicom.dcmread(fp, stop_before_pixels=True)
+                    dicom_files.append(fp)
+                except Exception:
                     continue
-        
+
         if not dicom_files:
-            raise ValueError(f"No DICOM files found in {dicom_dir}")
-        
+            raise ValueError(f"No DICOM files in {dicom_dir}")
+
         logger.info(f"Found {len(dicom_files)} DICOM files")
-        
-        # Sort by Instance Number or Slice Location
-        slices = []
-        for filepath in tqdm(dicom_files, desc="Reading DICOM files"):
-            ds = pydicom.dcmread(filepath)
-            slices.append(ds)
-        
-        # Sort slices
-        slices.sort(key=lambda x: float(getattr(x, 'InstanceNumber', 0)))
-        
-        # Stack into 3D volume
-        logger.info("Stacking slices into 3D volume...")
+        slices = [pydicom.dcmread(str(f)) for f in
+                  tqdm(dicom_files, desc="Reading DICOM")]
+        slices.sort(key=lambda s: float(getattr(s, 'InstanceNumber', 0)))
+
         volume = np.stack([s.pixel_array.astype(np.float32) for s in slices])
-        
-        # Normalize to 0-255 for display
-        volume = self._normalize_volume(volume)
-        
-        self.original_shape = volume.shape
-        self.scan_id = self.dicom_dir.name
-        
-        logger.info(f"Loaded volume: {volume.shape}")
-        return volume
-    
-    def _normalize_volume(self, volume: np.ndarray) -> np.ndarray:
-        """Normalize volume to 0-255 range"""
-        # Clip extreme values (outliers)
         p2, p98 = np.percentile(volume, [2, 98])
         volume = np.clip(volume, p2, p98)
-        
-        # Normalize to 0-255
-        if volume.max() > volume.min():
-            volume = (volume - volume.min()) / (volume.max() - volume.min()) * 255
-        else:
-            volume = np.zeros_like(volume)
-        
-        return volume.astype(np.uint8)
-    
-    def get_slice_display(self, slice_idx: int) -> np.ndarray:
-        """Get slice for display with annotations"""
-        if self.volume is None:
-            return np.zeros((512, 512, 3), dtype=np.uint8)
-        
-        # Get axial slice
-        slice_2d = self.volume[slice_idx].copy()
-        
-        # Apply brightness/contrast
-        slice_2d = np.clip(slice_2d * self.contrast + self.brightness * 50, 0, 255).astype(np.uint8)
-        
-        # Convert to BGR for OpenCV
-        slice_bgr = cv2.cvtColor(slice_2d, cv2.COLOR_GRAY2BGR)
-        
-        # Draw annotations
-        slice_bgr = self._draw_annotations(slice_bgr, slice_idx)
-        
-        # Add info overlay
-        slice_bgr = self._draw_info_overlay(slice_bgr, slice_idx)
-        
-        # Scale for display
-        if self.display_scale != 1.0:
-            new_size = (int(slice_bgr.shape[1] * self.display_scale),
-                       int(slice_bgr.shape[0] * self.display_scale))
-            slice_bgr = cv2.resize(slice_bgr, new_size, interpolation=cv2.INTER_LINEAR)
-        
-        return slice_bgr
-    
-    def _draw_annotations(self, image: np.ndarray, slice_idx: int) -> np.ndarray:
-        """Draw annotation points on image"""
-        # Draw left TMJ (green)
+        volume = ((volume - p2) / max(p98 - p2, 1) * 255).astype(np.uint8)
+
+        self.original_shape = volume.shape
+        self.scan_id = self.dicom_dir.name
+        logger.info(f"Volume shape: {volume.shape}")
+        return volume
+
+    # ------------------------------------------------------------------ #
+    #  Helpers                                                              #
+    # ------------------------------------------------------------------ #
+
+    def _active_ann(self):
+        """Return [z,y,x] of the annotation being placed (or last placed)."""
+        if self.current_mode == "right" and self.left_tmj is not None:
+            return self.left_tmj
+        if self.current_mode == "left" and self.right_tmj is not None:
+            return self.right_tmj
         if self.left_tmj is not None:
-            z, y, x = self.left_tmj
-            if abs(z - slice_idx) < 3:  # Show marker if within 3 slices
-                alpha = 1.0 - abs(z - slice_idx) / 3.0
-                color = (0, int(255 * alpha), 0)  # Green
-                thickness = 2 if z == slice_idx else 1
-                cv2.circle(image, (int(x), int(y)), 10, color, thickness)
-                cv2.circle(image, (int(x), int(y)), 2, color, -1)
-                if z == slice_idx:
-                    cv2.putText(image, "L", (int(x) + 15, int(y) - 10),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-        
-        # Draw right TMJ (blue)
+            return self.left_tmj
         if self.right_tmj is not None:
-            z, y, x = self.right_tmj
-            if abs(z - slice_idx) < 3:
-                alpha = 1.0 - abs(z - slice_idx) / 3.0
-                color = (int(255 * alpha), 0, 0)  # Blue
-                thickness = 2 if z == slice_idx else 1
-                cv2.circle(image, (int(x), int(y)), 10, color, thickness)
-                cv2.circle(image, (int(x), int(y)), 2, color, -1)
-                if z == slice_idx:
-                    cv2.putText(image, "R", (int(x) + 15, int(y) - 10),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-        
-        return image
-    
-    def _draw_info_overlay(self, image: np.ndarray, slice_idx: int) -> np.ndarray:
-        """Draw information overlay"""
-        h, w = image.shape[:2]
-        
-        # Semi-transparent black bar at top
-        overlay = image.copy()
-        cv2.rectangle(overlay, (0, 0), (w, 120), (0, 0, 0), -1)
-        image = cv2.addWeighted(overlay, 0.6, image, 0.4, 0)
-        
-        # Scan info
-        info_lines = [
-            f"Scan: {self.scan_id}",
-            f"Slice: {slice_idx + 1}/{self.original_shape[0]}",
-            f"Mode: {'LEFT' if self.current_mode == 'left' else 'RIGHT'} TMJ",
-            f"Status: L={'✓' if self.left_tmj else '✗'}  R={'✓' if self.right_tmj else '✗'}",
-        ]
-        
-        y_offset = 20
-        for line in info_lines:
-            color = (0, 255, 0) if self.current_mode == "left" else (255, 0, 0)
-            cv2.putText(image, line, (10, y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            y_offset += 25
-        
-        # Help text at bottom
-        help_text = "L:Left | R:Right | S:Save | N:Next | U:Undo | H:Help | Q:Quit"
-        cv2.putText(image, help_text, (10, h - 10),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
-        
-        # Progress
-        progress_text = f"Annotated: {self.annotated_count} scans"
-        cv2.putText(image, progress_text, (w - 200, h - 10),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 255, 100), 1)
-        
-        return image
-    
-    def mouse_callback(self, event, x, y, flags, param):
-        """Handle mouse events"""
-        if event == cv2.EVENT_LBUTTONDOWN:
-            # Scale coordinates back to original size
-            x_orig = int(x / self.display_scale)
-            y_orig = int(y / self.display_scale)
-            
-            # Set annotation
-            if self.current_mode == "left":
-                self.left_tmj = [self.current_slice, y_orig, x_orig]
-                logger.info(f"Set LEFT TMJ: {self.left_tmj}")
-                # Auto-switch to right mode
-                self.current_mode = "right"
-            else:
-                self.right_tmj = [self.current_slice, y_orig, x_orig]
-                logger.info(f"Set RIGHT TMJ: {self.right_tmj}")
-                # Auto-switch to left mode for next scan
-                self.current_mode = "left"
-            
-            self.update_display()
-        
-        elif event == cv2.EVENT_MOUSEWHEEL:
-            # Scroll through slices
-            # Interpret flags as signed 32-bit (macOS may pass unsigned)
-            signed_flags = flags if flags < 0x80000000 else flags - 0x100000000
-            delta = 1 if signed_flags > 0 else -1
-            self.current_slice = np.clip(
-                self.current_slice + delta,
-                0,
-                self.original_shape[0] - 1
-            )
-            self.update_display()
-    
+            return self.right_tmj
+        return None
+
+    def _apply_brightness(self, sl: np.ndarray) -> np.ndarray:
+        return np.clip(sl.astype(np.float32) * self.brightness, 0, 255).astype(np.uint8)
+
+    def _make_panel(self, raw: np.ndarray, label: str,
+                    cross_rc=None, dot_rc=None,
+                    dot_color=(0, 220, 0)) -> np.ndarray:
+        """
+        Scale `raw` (uint8 2-D) to PANEL_H×PANEL_W, draw crosshair and dot.
+
+        cross_rc : (row, col) in raw-space where horizontal+vertical lines cross
+        dot_rc   : (row, col) in raw-space of the annotation circle
+        """
+        orig_h, orig_w = raw.shape
+        panel = cv2.resize(raw, (PANEL_W, PANEL_H),
+                           interpolation=cv2.INTER_LINEAR)
+        panel_bgr = cv2.cvtColor(panel, cv2.COLOR_GRAY2BGR)
+
+        def to_panel(r, c):
+            return (int(c * PANEL_W / orig_w),
+                    int(r * PANEL_H / orig_h))
+
+        # Crosshair at cross_rc
+        if cross_rc is not None:
+            px, py = to_panel(*cross_rc)
+            cv2.line(panel_bgr, (0, py), (PANEL_W, py), COL_CROSS, 1)
+            cv2.line(panel_bgr, (px, 0), (px, PANEL_H), COL_CROSS, 1)
+
+        # Annotation circle at dot_rc
+        if dot_rc is not None:
+            px, py = to_panel(*dot_rc)
+            cv2.circle(panel_bgr, (px, py), 10, dot_color, 2)
+            cv2.circle(panel_bgr, (px, py),  2, dot_color, -1)
+
+        # Label
+        cv2.putText(panel_bgr, label, (8, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1,
+                    cv2.LINE_AA)
+        return panel_bgr
+
+    # ------------------------------------------------------------------ #
+    #  3-panel display                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _build_display(self) -> np.ndarray:
+        D, H, W = self.original_shape
+        z = self.current_slice
+        ann = self._active_ann()
+
+        # Reference coords for cross-planes (fall back to centre)
+        cy = ann[1] if ann else H // 2
+        cx = ann[2] if ann else W // 2
+
+        # --- Panel 1: Axial  volume[z, :, :]  rows=Y  cols=X
+        axial_raw = self._apply_brightness(self.volume[z])
+        # crosshair always at current (cy, cx)
+        # show dot for left and right if on this z slice
+        p1 = self._make_panel(axial_raw,
+                               f"AXIAL  z={z}/{D}",
+                               cross_rc=(cy, cx))
+        for ann_pt, col in [(self.left_tmj, COL_LEFT),
+                             (self.right_tmj, COL_RIGHT)]:
+            if ann_pt is not None and abs(ann_pt[0] - z) < 3:
+                r, c = ann_pt[1], ann_pt[2]
+                px = int(c * PANEL_W / W)
+                py = int(r * PANEL_H / H)
+                alpha = 1.0 - abs(ann_pt[0] - z) / 3.0
+                col_a = tuple(int(v * alpha) for v in col)
+                cv2.circle(p1, (px, py), 10, col_a, 2 if ann_pt[0] == z else 1)
+                cv2.circle(p1, (px, py),  2, col_a, -1)
+                tag = "L" if col == COL_LEFT else "R"
+                cv2.putText(p1, tag, (px + 14, py - 8),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, col_a, 2)
+
+        # --- Panel 2: Coronal  volume[:, cy, :]  rows=Z  cols=X
+        cor_raw   = self._apply_brightness(self.volume[:, cy, :])
+        cor_dot   = (ann[0], ann[2]) if ann else None
+        p2 = self._make_panel(cor_raw,
+                               f"CORONAL  y={cy}/{H}",
+                               cross_rc=(z, cx),
+                               dot_rc=cor_dot,
+                               dot_color=COL_LEFT if self.current_mode == "left"
+                                         else COL_RIGHT)
+
+        # --- Panel 3: Sagittal  volume[:, :, cx]  rows=Z  cols=Y
+        sag_raw   = self._apply_brightness(self.volume[:, :, cx])
+        sag_dot   = (ann[0], ann[1]) if ann else None
+        p3 = self._make_panel(sag_raw,
+                               f"SAGITTAL  x={cx}/{W}",
+                               cross_rc=(z, cy),
+                               dot_rc=sag_dot,
+                               dot_color=COL_LEFT if self.current_mode == "left"
+                                         else COL_RIGHT)
+
+        combined = np.hstack([p1, p2, p3])
+
+        # --- Info bar at bottom
+        bar = np.zeros((50, combined.shape[1], 3), dtype=np.uint8)
+        mode_col = COL_LEFT if self.current_mode == "left" else COL_RIGHT
+        status = (f"Scan: {self.scan_id}  |  "
+                  f"Mode: {'LEFT' if self.current_mode == 'left' else 'RIGHT'}  |  "
+                  f"L={'✓' if self.left_tmj else '✗'}  "
+                  f"R={'✓' if self.right_tmj else '✗'}  |  "
+                  f"Done: {self.annotated_count}")
+        cv2.putText(bar, status, (10, 32),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, mode_col, 1, cv2.LINE_AA)
+        controls = "A/D:slice  L/R:mode  S:save  U:undo  +/-:brightness  Q:quit"
+        cv2.putText(bar, controls, (10, 46),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (150, 150, 150), 1)
+
+        return np.vstack([combined, bar])
+
     def update_display(self):
-        """Update the display window"""
-        display_image = self.get_slice_display(self.current_slice)
-        cv2.imshow(self.window_name, display_image)
-    
+        img = self._build_display()
+        cv2.imshow(self.window_name, img)
+
+    # ------------------------------------------------------------------ #
+    #  Mouse callback                                                       #
+    # ------------------------------------------------------------------ #
+
+    def mouse_callback(self, event, x, y, flags, param):
+        D, H, W = self.original_shape
+
+        if event == cv2.EVENT_MOUSEWHEEL:
+            signed = flags if flags < 0x80000000 else flags - 0x100000000
+            delta = 1 if signed > 0 else -1
+            self.current_slice = int(np.clip(self.current_slice + delta, 0, D - 1))
+            self.update_display()
+            return
+
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+
+        # Determine which panel (x is in the combined image)
+        # Panels: [0..PW) axial, [PW..2PW) coronal, [2PW..3PW) sagittal
+        # Info bar is below: y >= PANEL_H → ignore
+        if y >= PANEL_H:
+            return
+
+        panel_idx = x // PANEL_W
+        local_x   = x % PANEL_W
+        local_y   = y                # row in panel
+
+        ann = self._active_ann()
+
+        if panel_idx == 0:           # Axial: rows=Y  cols=X
+            orig_z = self.current_slice
+            orig_y = int(local_y * H / PANEL_H)
+            orig_x = int(local_x * W / PANEL_W)
+
+        elif panel_idx == 1:         # Coronal: rows=Z  cols=X
+            orig_z = int(local_y * D / PANEL_H)
+            orig_x = int(local_x * W / PANEL_W)
+            orig_y = ann[1] if ann else H // 2
+            self.current_slice = orig_z   # sync axial view
+
+        elif panel_idx == 2:         # Sagittal: rows=Z  cols=Y
+            orig_z = int(local_y * D / PANEL_H)
+            orig_y = int(local_x * H / PANEL_W)
+            orig_x = ann[2] if ann else W // 2
+            self.current_slice = orig_z
+
+        else:
+            return
+
+        # Clamp
+        orig_z = int(np.clip(orig_z, 0, D - 1))
+        orig_y = int(np.clip(orig_y, 0, H - 1))
+        orig_x = int(np.clip(orig_x, 0, W - 1))
+
+        if self.current_mode == "left":
+            self.left_tmj = [orig_z, orig_y, orig_x]
+            logger.info(f"LEFT TMJ: z={orig_z} y={orig_y} x={orig_x}")
+            self.current_mode = "right"
+        else:
+            self.right_tmj = [orig_z, orig_y, orig_x]
+            logger.info(f"RIGHT TMJ: z={orig_z} y={orig_y} x={orig_x}")
+            self.current_mode = "left"
+
+        self.update_display()
+
+    # ------------------------------------------------------------------ #
+    #  Save / reset                                                         #
+    # ------------------------------------------------------------------ #
+
     def save_annotation(self) -> bool:
-        """Save current annotation to JSON"""
         if self.left_tmj is None or self.right_tmj is None:
-            logger.warning("Both LEFT and RIGHT TMJ must be annotated before saving!")
+            logger.warning("Both LEFT and RIGHT TMJ must be annotated!")
             return False
-        
-        # Convert numpy types to native Python types
-        left_tmj_list = [int(x) for x in self.left_tmj]
-        right_tmj_list = [int(x) for x in self.right_tmj]
-        original_shape_list = [int(x) for x in self.original_shape] if isinstance(self.original_shape, (list, tuple, np.ndarray)) else list(self.original_shape)
-        
+
         annotation = {
             "scan_id": self.scan_id,
             "dicom_dir": str(self.dicom_dir),
-            "original_shape": original_shape_list,
+            "original_shape": [int(v) for v in self.original_shape],
             "annotated_at": datetime.now().isoformat(),
-            "left_tmj": {
-                "center": left_tmj_list,  # [z, y, x]
-                "confidence": "manual"
-            },
-            "right_tmj": {
-                "center": right_tmj_list,  # [z, y, x]
-                "confidence": "manual"
-            }
+            "left_tmj":  {"center": [int(v) for v in self.left_tmj],
+                          "confidence": "manual"},
+            "right_tmj": {"center": [int(v) for v in self.right_tmj],
+                          "confidence": "manual"},
         }
-        
-        # Save to JSON
-        output_file = self.output_dir / f"{self.scan_id}_rois.json"
-        with open(output_file, 'w') as f:
+        out = self.output_dir / f"{self.scan_id}_rois.json"
+        with open(out, "w") as f:
             json.dump(annotation, f, indent=2)
-        
-        logger.info(f"✅ Saved annotation to {output_file}")
+        logger.info(f"✓ Saved → {out}")
         self.annotated_count += 1
         return True
-    
-    def reset_annotations(self):
-        """Reset current annotations"""
-        self.left_tmj = None
-        self.right_tmj = None
-        self.current_mode = "left"
-        logger.info("Reset annotations")
-    
-    def show_help(self):
-        """Show help window"""
-        help_text = """
-ROI Annotation Tool - Help
-=========================
 
-CONTROLS:
----------
-Left Click       : Place annotation point
-Mouse Wheel      : Navigate through slices
-L                : Switch to LEFT TMJ mode (Green)
-R                : Switch to RIGHT TMJ mode (Blue)
-S                : Save annotation (both points required)
-N                : Next scan (after saving)
-U                : Undo last point
-Q / ESC          : Quit
-H                : Show this help
+    # ------------------------------------------------------------------ #
+    #  Main loop                                                            #
+    # ------------------------------------------------------------------ #
 
-WORKFLOW:
----------
-1. Navigate to axial slice where TMJ is visible
-2. Click on center of LEFT TMJ condyle (Green)
-3. Tool auto-switches to RIGHT mode
-4. Click on center of RIGHT TMJ condyle (Blue)
-5. Press 'S' to save
-6. Press 'N' to load next scan (or 'Q' to quit)
-
-TIPS:
------
-- Use middle slices where condyle is most visible
-- Aim for center of condylar head
-- Both points should be on same slice (or close)
-- You can adjust points by re-clicking
-- Press 'U' to undo last point
-
-STATUS:
--------
-✓ = Annotated
-✗ = Not annotated
-        """
-        
-        print("\n" + "="*60)
-        print(help_text)
-        print("="*60 + "\n")
-    
     def run(self):
-        """Run the annotation tool"""
-        logger.info("Starting ROI Annotation Tool")
-        logger.info(f"DICOM directory: {self.dicom_dir}")
-        logger.info(f"Output directory: {self.output_dir}")
-        
-        # Load DICOM volume
+        logger.info(f"Loading: {self.dicom_dir}")
         try:
             self.volume = self.load_dicom_series(self.dicom_dir)
         except Exception as e:
-            logger.error(f"Failed to load DICOM series: {e}")
+            logger.error(f"Failed to load: {e}")
             return
-        
-        # Set initial slice (middle of volume)
+
         self.current_slice = self.original_shape[0] // 2
-        
-        # Calculate display scale (fit to screen ~800px)
-        target_size = 800
-        self.display_scale = target_size / max(self.original_shape[1], self.original_shape[2])
-        
-        # Create window
+
         cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+        # Resize window to show all 3 panels
+        cv2.resizeWindow(self.window_name, PANEL_W * 3, PANEL_H + 50)
         cv2.setMouseCallback(self.window_name, self.mouse_callback)
-        
-        # Show help
-        self.show_help()
-        
-        # Initial display
         self.update_display()
-        
-        # Main loop
-        logger.info("Ready! Click on TMJ centers to annotate.")
-        logger.info("Press 'H' for help, 'Q' to quit")
-        
+
+        logger.info("Ready — click to annotate. A/D = slices, S = save, Q = quit")
+
         while True:
             key = cv2.waitKey(1) & 0xFF
-            
-            if key == ord('q') or key == 27:  # Q or ESC
-                logger.info("Quitting...")
+
+            if key in (ord('q'), 27):
                 break
-            
-            elif key == ord('l'):  # Left mode
-                self.current_mode = "left"
-                logger.info("Switched to LEFT TMJ mode")
-                self.update_display()
-            
-            elif key == ord('r'):  # Right mode
-                self.current_mode = "right"
-                logger.info("Switched to RIGHT TMJ mode")
-                self.update_display()
-            
-            elif key == ord('s'):  # Save
+
+            elif key == ord('s'):
                 if self.save_annotation():
-                    logger.info("Annotation saved! Press 'N' for next scan or 'Q' to quit")
-            
-            elif key == ord('n'):  # Next (only after saving)
-                if self.left_tmj is not None and self.right_tmj is not None:
-                    logger.info("Load next scan manually (re-run tool with new scan)")
+                    logger.info("Saved. Press Q to close.")
+
+            elif key == ord('l'):
+                self.current_mode = "left"
+                self.update_display()
+
+            elif key == ord('r'):
+                self.current_mode = "right"
+                self.update_display()
+
+            elif key == ord('u'):
+                if self.current_mode == "right" and self.right_tmj:
+                    self.right_tmj = None; self.current_mode = "right"
+                elif self.left_tmj:
+                    self.left_tmj = None; self.current_mode = "left"
+                self.update_display()
+
+            elif key == ord('n'):
+                if self.left_tmj and self.right_tmj:
                     break
                 else:
-                    logger.warning("Complete and save current annotation first!")
-            
-            elif key == ord('u'):  # Undo
-                if self.current_mode == "right" and self.right_tmj is not None:
-                    self.right_tmj = None
-                    logger.info("Undone RIGHT TMJ")
-                elif self.current_mode == "left" and self.left_tmj is not None:
-                    self.left_tmj = None
-                    logger.info("Undone LEFT TMJ")
-                self.update_display()
-            
-            elif key == ord('h'):  # Help
-                self.show_help()
-            
-            elif key == ord('+') or key == ord('='):  # Brightness up
-                self.brightness = min(self.brightness + 0.1, 2.0)
+                    logger.warning("Annotate and save both points first.")
+
+            elif key in (ord('+'), ord('=')):
+                self.brightness = min(self.brightness + 0.1, 3.0)
                 self.update_display()
 
-            elif key == ord('-') or key == ord('_'):  # Brightness down
-                self.brightness = max(self.brightness - 0.1, 0.0)
+            elif key in (ord('-'), ord('_')):
+                self.brightness = max(self.brightness - 0.1, 0.1)
                 self.update_display()
 
-            elif key == ord('d') or key == 83:  # D or → : next slice
+            # Slice navigation
+            elif key in (ord('d'), 83):   # D or →
                 self.current_slice = min(self.current_slice + 1,
                                          self.original_shape[0] - 1)
                 self.update_display()
 
-            elif key == ord('a') or key == 81:  # A or ← : previous slice
+            elif key in (ord('a'), 81):   # A or ←
                 self.current_slice = max(self.current_slice - 1, 0)
                 self.update_display()
 
-            elif key == ord('D'):  # Shift+D : next 10 slices
+            elif key == ord('D'):         # Shift+D
                 self.current_slice = min(self.current_slice + 10,
                                          self.original_shape[0] - 1)
                 self.update_display()
 
-            elif key == ord('A'):  # Shift+A : previous 10 slices
+            elif key == ord('A'):         # Shift+A
                 self.current_slice = max(self.current_slice - 10, 0)
                 self.update_display()
-        
+
         cv2.destroyAllWindows()
-        logger.info(f"Total annotated: {self.annotated_count} scans")
-        logger.info("Done!")
 
 
 def main():
     import argparse
-    
     parser = argparse.ArgumentParser(
         description="ROI Annotation Tool for TMJ Detection Dataset",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
-    parser.add_argument(
-        "dicom_dir",
-        type=str,
-        help="Path to DICOM directory to annotate"
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="data/roi_annotations",
-        help="Output directory for annotations (default: data/roi_annotations)"
-    )
-    
+    parser.add_argument("dicom_dir", type=str,
+                        help="Path to DICOM directory")
+    parser.add_argument("--output", type=str,
+                        default="data/roi_annotations",
+                        help="Output directory (default: data/roi_annotations)")
     args = parser.parse_args()
-    
-    # Check if DICOM directory exists
+
     if not Path(args.dicom_dir).exists():
-        logger.error(f"DICOM directory not found: {args.dicom_dir}")
+        logger.error(f"Not found: {args.dicom_dir}")
         sys.exit(1)
-    
-    # Run tool
-    tool = ROIAnnotationTool(args.dicom_dir, args.output)
-    tool.run()
+
+    ROIAnnotationTool(args.dicom_dir, args.output).run()
 
 
 if __name__ == "__main__":
     main()
-
