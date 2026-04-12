@@ -48,7 +48,7 @@ MasterProject/
 ├── AGENTS.md          # Короткая памятка для ИИ-агентов
 ```
 
-Уточнения по ML: структура `MLService/data/`, чекпойнты в `experiments/`, игнорируемые тяжёлые артефакты — в `MLService/.gitignore` и [MLService/models/README.md](../MLService/models/README.md).
+Уточнения по ML: структура `MLService/data/`, чекпойнты в `experiments/`, игнорируемые тяжёлые артефакты — в `MLService/.gitignore` и [MLService/models/README.md](../MLService/models/README.md). Обучение бинарного классификатора положения в Colab/DataSphere — ноутбук `MLService/google_colab/train_binary_position_classifier.ipynb`; выгрузка прогонов и пример локальной распаковки — [MLService/experiments/README.md](../MLService/experiments/README.md), сводка метрик — [POSITION_CLASSIFIER_EXPERIMENTS.md](../MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md).
 
 ## HTTP API (актуальность)
 

@@ -13,6 +13,22 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from training.losses.focal_loss import BinaryFocalLoss
 
 
+class TestBinaryFocalLossDevice:
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_targets_cpu_logits_cuda_runs_and_backward(self):
+        """CPU targets with CUDA logits: targets must be moved to logits.device."""
+        loss_fn = BinaryFocalLoss()
+        logits = torch.randn(4, device="cuda", requires_grad=True)
+        targets = torch.randint(0, 2, (4,)).float()
+        assert targets.device.type == "cpu"
+        loss = loss_fn(logits, targets)
+        assert loss.ndim == 0
+        assert torch.isfinite(loss)
+        loss.backward()
+        assert logits.grad is not None
+        assert torch.isfinite(logits.grad).all()
+
+
 class TestBinaryFocalLossOutput:
     def test_output_is_scalar(self):
         loss_fn = BinaryFocalLoss()
