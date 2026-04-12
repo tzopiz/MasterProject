@@ -9,7 +9,7 @@ opencv-python>=4.10.0
 # Py 3.14 + macOS arm64: torch 2.9.x wheels were missing libtorch_cpu.dylib; use 2.11+
 torch>=2.11.0
 torchvision>=0.26.0
-Pillow>=11.0.0
+Pillow>=12.1.1
 pydantic>=2.9.0
 aiofiles>=24.1.0
 scipy>=1.14.0
