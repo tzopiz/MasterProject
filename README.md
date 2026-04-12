@@ -2,15 +2,15 @@
 
 Магистерский проект: iOS приложение с ИИ для анализа височно-нижнечелюстного сустава (ВНЧС) по снимкам КЛКТ.
 
-**Документация:** [docs/README.md](docs/README.md) (оглавление) · для ИИ-агентов: [AGENTS.md](AGENTS.md) · контекст: [docs/project-context.md](docs/project-context.md)
+**Документация:** [AGENTS.md](AGENTS.md) (для ИИ-агентов) · [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) (термины, API, структура) · [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md) (типичные проблемы пайплайна)
 
 ## Архитектура
 
-Проект состоит из трех компонентов:
+Проект состоит из трёх компонентов:
 
-1. **Backend** (Swift Vapor) - API для управления задачами и данными
-2. **MLService** (Python FastAPI) - ML инференс и обработка DICOM
-3. **iOS App** (Swift/SwiftUI) — клиент (модульная структура, см. [iOSApp/ModularAppArchitecture.md](iOSApp/ModularAppArchitecture.md))
+1. **Backend** (Swift Vapor) — API для задач и данных
+2. **MLService** (Python FastAPI) — ML-инференс и обработка DICOM
+3. **iOS App** (Swift/SwiftUI) — клиент ([iOSApp/ModularAppArchitecture.md](iOSApp/ModularAppArchitecture.md))
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────────┐
@@ -21,39 +21,57 @@
                               ▼
                         ┌──────────┐
                         │ SQLite   │
-                        │    DB    │
                         └──────────┘
 ```
 
 ## Технологический стек
 
 ### Backend (Vapor)
-- Swift 5.9+
-- Vapor 4.x - веб-фреймворк
-- Fluent + SQLite - ORM и база данных
-- AsyncHTTPClient - HTTP клиент
+
+- Swift 5.9+, Vapor 4.x, Fluent + SQLite, AsyncHTTPClient
 
 ### ML Service
-- Python 3.9+
-- FastAPI - API фреймворк
-- PyTorch - ML инференс
-- pydicom - обработка DICOM
-- scikit-image, OpenCV - обработка изображений
+
+- Python 3.9+, FastAPI, PyTorch, pydicom, scikit-image, OpenCV
 
 ### iOS App
-- Swift 5.9+
-- SwiftUI
-- Сетевой слой (например `AnalysisEndpoint`) — базовый URL API настраивается в коде клиента
 
-## Быстрый старт
+- Swift 5.9+, SwiftUI; базовый URL API — в коде клиента (`AnalysisEndpoint` и т.п.)
 
-### Предварительные требования
+## Быстрый старт (локальная демо-цепочка)
 
-- Swift 5.9+ и Xcode (для Backend)
-- Python 3.9+ (для ML Service)
-- macOS 13+ или Linux
+### Требования
 
-### 1. Запуск Backend
+- Swift 5.9+ и Xcode (Backend + iOS)
+- Python 3.9+ (MLService)
+- macOS 13+ или Linux для Backend/ML
+
+### 1. ML Service
+
+```bash
+cd MLService
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+
+Сервис слушает **http://127.0.0.1:8001** (или порт из лога). Вес детектора: переменная **`MODEL_PATH`**, иначе поиск последнего `experiments/detector_*/best_model.pth`, иначе ожидается **`models/tmj_detector_best.pth`** (см. `app.py`).
+
+Пример с явным чекпойнтом:
+
+```bash
+export MODEL_PATH="experiments/detector_20251124_175805/best_model.pth"
+python app.py
+```
+
+Проверка:
+
+```bash
+curl http://127.0.0.1:8001/health
+```
+
+### 2. Backend
 
 ```bash
 cd Backend
@@ -61,107 +79,92 @@ swift build
 swift run App
 ```
 
-Backend запустится на `http://localhost:8080`
-
-### 2. Запуск ML Service
+По умолчанию **http://127.0.0.1:8080**. Проверка:
 
 ```bash
-cd MLService
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python app.py
+curl http://127.0.0.1:8080/health
 ```
 
-ML Service запустится на `http://localhost:8001`
+Если ML на другом хосте/порту:
 
-### 3. Проверка работоспособности
-
-Health check Backend:
 ```bash
-curl http://localhost:8080/health
+export ML_SERVICE_URL="http://127.0.0.1:8001"
+swift run App
 ```
 
-Health check ML Service:
-```bash
-curl http://localhost:8001/health
-```
+### 3. iOS
 
-## API
+1. Открыть `iOSApp/MasterDoctor/MasterDoctor.xcodeproj` в Xcode
+2. Запустить схему на симуляторе или устройстве
+3. Выбрать папку с `.dcm`, запустить сценарий анализа (экран зависит от текущей сборки; см. `TMJ_DETECTION_SETUP.md`)
 
-Актуальные контракты смотрите в коде (`Backend/Sources/App/Controllers/`, `MLService/app.py`). Кратко:
+### Устранение неполадок
+
+- **ML не находит вес:** проверьте `ls experiments/detector_*/best_model.pth` или положите релизный файл в `MLService/models/tmj_detector_best.pth` ([MLService/models/README.md](MLService/models/README.md)).
+- **Backend не достучится до ML:** `curl` на `:8001/health`, выставьте `ML_SERVICE_URL`.
+- **iOS и папка DICOM:** права в `Info.plist`, использование `.fileImporter` / документ-пикера — см. `TMJ_DETECTION_SETUP.md`.
+
+## API (кратко)
+
+Контракты уточняйте в коде: `Backend/Sources/App/Controllers/`, `MLService/app.py`.
 
 ### Backend
 
-- `GET /health` — health check
-- `POST /api/analysis` — загрузка **серии** DICOM (`multipart/form-data`, поле с файлами согласно `SeriesUploadRequest` в `AnalysisController.swift`)
-- `GET /api/analysis/{taskId}` — статус задачи и результаты (в одном ответе)
+- `GET /health`
+- `POST /api/analysis` — multipart, серия DICOM (`AnalysisController`, `SeriesUploadRequest`)
+- `GET /api/analysis/{taskId}` — статус и результат
 
 ### ML Service
 
-- `GET /health` — health check
-- `GET /models/status` — статус модели
-- `POST /process` — обработка (серия/объём; детали в FastAPI-приложении)
+- `GET /health`, `GET /models/status`, `POST /process`
+
+Ответ анализа по `taskId` может содержать поля вроде **`tmjLeft` / `tmjRight`** (JSON-строки с координатами/bbox) и **`volumeShape`** — см. `AnalysisResponse` в Swift.
 
 ## Workflow
 
-1. **Загрузка DICOM**: клиент (iOS) отправляет серию `.dcm` на Backend (`POST /api/analysis`).
-2. **Backend**: сохраняет файлы в `uploads/`, создаёт задачу в SQLite, в фоне вызывает ML Service.
-3. **ML Service**: собирает 3D-объём, выполняет **детекцию** TMJ (координаты, при необходимости bbox), может включать дополнительную обработку по текущему пайплайну.
-4. **Backend**: сохраняет JSON-результаты и метаданные (в т.ч. `volumeShape`) в БД.
-5. **iOS App**: запрашивает результат по `taskId` и отображает координаты / UI детекции.
+1. iOS отправляет серию `.dcm` на Backend (`POST /api/analysis`).
+2. Backend сохраняет файлы, создаёт задачу, вызывает ML Service.
+3. ML строит объём, детекция TMJ, возвращает координаты/метаданные.
+4. Backend пишет результат в SQLite; клиент опрашивает по `taskId`.
 
-Отдельный тулчейн в `MLService/` (датасет → ROI → сегментация U-Net) описан в [MLService/README.md](MLService/README.md) и не обязан совпадать с каждым шагом продакшен-запроса через Backend.
+Тулчейн обучения/датасета в `MLService/` описан в [MLService/README.md](MLService/README.md).
 
 ## Функциональность
 
 ### Реализовано
 
-✅ Backend API (Vapor)
-- Загрузка DICOM файлов
-- Управление задачами анализа
-- Хранение результатов в SQLite
-- HTTP клиент для ML Service
-
-✅ ML Service (Python)
-- Парсинг DICOM и сбор объёма
-- Детекция TMJ (3D CNN; см. эксперименты и `MODEL_PATH`)
-- Инструменты обучения, датасета и сегментации (U-Net) в репозитории
-- Поддержка MPS / CUDA по конфигурации
+- Backend API (загрузка DICOM, задачи, SQLite, клиент к ML)
+- ML Service: парсинг DICOM, детекция TMJ, MPS/CUDA по окружению
 
 ### В разработке / улучшения
 
-🔄 Качество детекции (метрики на валидации, см. [QUICKSTART.md](QUICKSTART.md))
-🔄 Расширение UI (3D-визуализация, экспорт результатов и т.д.)
+- Качество детекции и UX (см. [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md))
+- Расширение UI (3D, экспорт и т.д.)
 
-## Структура проекта
+## Структура репозитория
 
 ```
 MasterProject/
 ├── Backend/
 ├── MLService/
-├── iOSApp/MasterDoctor/       # Xcode-проект и модули
-├── docs/                      # Оглавление и контекст (в т.ч. для агентов)
-├── examples/
+├── iOSApp/MasterDoctor/
 ├── README.md
-├── AGENTS.md
-├── QUICKSTART.md
-└── TMJ_DETECTION_SETUP.md
+├── PROJECT_CONTEXT.md
+├── TMJ_DETECTION_SETUP.md
+└── AGENTS.md
 ```
 
 ## Разработка
 
-### Backend (Swift)
+### Backend
 
-Редактирование и запуск:
 ```bash
 cd Backend
 swift run App
 ```
 
-### ML Service (Python)
+### ML Service (reload)
 
-Запуск с hot-reload:
 ```bash
 cd MLService
 source venv/bin/activate
@@ -170,43 +173,24 @@ uvicorn app:app --reload --port 8001
 
 ## Тестирование
 
-Проверка сервисов:
-
 ```bash
-curl http://localhost:8080/health
-curl http://localhost:8001/health
+curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8001/health
 ```
 
-Интеграционная загрузка DICOM — через **multipart** на `POST /api/analysis` (как iOS-клиент или Postman). Подробности и типичные проблемы: [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md).
+Интеграция через multipart на `POST /api/analysis` — подробности в [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md).
 
 ## Конфигурация
 
-### Backend
-
-Переменные окружения:
-- `ML_SERVICE_URL` - URL ML сервиса (по умолчанию: `http://localhost:8001`)
-
-### ML Service
-
-Переменные окружения:
-- `MODEL_PATH` - путь к файлу модели (по умолчанию: `models/segmentation_model.pth`)
-
-## Документация
-
-- [Оглавление docs/](docs/README.md)
-- [Backend README](Backend/README.md)
-- [ML Service README](MLService/README.md)
-- [Быстрый старт детекции](QUICKSTART.md)
-- [Настройка TMJ pipeline](TMJ_DETECTION_SETUP.md)
-- [Публичная CBCT-когорта: метки и сбор датасета](docs/cbct-public-cohort-dataset.md)
-
-Черновики планов в каталоге `.cursor/plans/` при работе в Cursor могут быть только локально (каталог `.cursor/` не в git).
+| Переменная | Где | Назначение |
+|------------|-----|------------|
+| `ML_SERVICE_URL` | Backend | URL ML Service (по умолчанию `http://localhost:8001`) |
+| `MODEL_PATH` | MLService | Путь к весам детектора |
 
 ## Лицензия
 
-Учебный проект для магистратуры
+Учебный проект для магистратуры.
 
 ## Автор
 
-Магистерская программа "ИИ в медицине"
-
+Магистерская программа «ИИ в медицине».

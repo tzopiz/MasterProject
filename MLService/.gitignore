@@ -15,6 +15,7 @@ build/
 models/*.pth
 models/*.pt
 models/*.onnx
+!models/tmj_detector_best.pth
 uploads/
 *.dcm
 

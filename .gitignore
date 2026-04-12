@@ -79,6 +79,7 @@ db.sqlite-wal
 models/*.pth
 models/*.pt
 models/*.onnx
+!MLService/models/tmj_detector_best.pth
 
 # ML Service - Experiments and Notebooks
 # Игнорируем всё под experiments/, кроме корневого README и любых README.md в подпапках прогонов.
@@ -91,14 +92,17 @@ MLService/validation/reports/
 .wandb/
 *.tensorboard
 
-# Personal / generated exports (presentation: docs/presentation + scripts/presentation)
+# Локальные каталоги и файлы вне git (не коммитить)
+/docs/
+/Nir/
+/examples/
+/scripts/presentation/
+/plan.md
+
+# Личные / сгенерированные
 /diplom.pdf
-/docs/presentation/presentation.pdf
-/docs/presentation/presentation.pptx
 /тезисы_правила.pdf
 *.pages
-/docs/presentation/план_доклада_конференция.docx
-/docs/presentation/тезисы.docx
-/docs/presentation/доклад_конференция.docx
 
 MLService/docs/superpowers/
+
