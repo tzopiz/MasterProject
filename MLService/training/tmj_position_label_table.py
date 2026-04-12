@@ -19,7 +19,9 @@ import json
 import random
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -224,3 +226,59 @@ def binarize_labels(records: List[Dict], crop_dir: str) -> List[Dict]:
 
     logger.info("binarize_labels: %d records → %d binary side-records", len(records), len(binary_records))
     return binary_records
+
+
+# ---------------------------------------------------------------------------
+# Stratified Group K-Fold (patient-level groups, sagittal binary strat label)
+# ---------------------------------------------------------------------------
+
+
+def patient_sagittal_strat_labels(binary_records: List[Dict]) -> Dict[str, int]:
+    """
+    Per-patient stratification label for sagittal binary (0=central, 1=non-central).
+
+    Policy: ``max`` over all side-records for that patient — if any side is
+    non-central (1), the patient is treated as positive for stratification.
+    This keeps asymmetric (0/1) patients in the positive stratum.
+    """
+    strat: Dict[str, int] = {}
+    for rec in binary_records:
+        p = rec["patient_name"]
+        s = int(rec["sag"])
+        strat[p] = max(strat.get(p, 0), s)
+    return strat
+
+
+def iter_stratified_group_kfold_indices(
+    binary_records: List[Dict],
+    n_splits: int = 5,
+    shuffle: bool = True,
+    random_state: int = 42,
+) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Yield ``(train_idx, val_idx)`` index arrays into ``binary_records``.
+
+    - **Groups:** ``patient_name`` (no leakage across folds).
+    - **Stratification:** per-patient sagittal binary label from
+      :func:`patient_sagittal_strat_labels`.
+
+    Requires ``scikit-learn`` (``StratifiedGroupKFold``).
+    """
+    from sklearn.model_selection import StratifiedGroupKFold
+
+    n = len(binary_records)
+    if n == 0:
+        return
+
+    indices = np.arange(n, dtype=np.int64)
+    groups = np.array([rec["patient_name"] for rec in binary_records], dtype=object)
+    strat_map = patient_sagittal_strat_labels(binary_records)
+    y = np.array([strat_map[rec["patient_name"]] for rec in binary_records], dtype=np.int64)
+
+    sgkf = StratifiedGroupKFold(
+        n_splits=n_splits,
+        shuffle=shuffle,
+        random_state=random_state,
+    )
+    for train_idx, val_idx in sgkf.split(indices, y, groups):
+        yield train_idx, val_idx

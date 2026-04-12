@@ -32,7 +32,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.optim as optim
-from sklearn.metrics import roc_curve, roc_auc_score
 from tqdm import tqdm
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -40,6 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from models.tmj_binary_position_classifier import TMJBinaryPositionClassifier
 from training.datasets.tmj_position_dataset import get_binary_position_dataloaders
 from training.losses.focal_loss import BinaryFocalLoss
+from training.utils.binary_metrics import calibration_report_binary_head
 
 logging.basicConfig(
     level=logging.INFO,
@@ -195,21 +195,18 @@ def calibrate_thresholds(model, val_loader, device) -> dict:
             results["accuracy_at_threshold"][name] = float(np.mean((probs >= 0.5) == labels))
             continue
 
-        fpr, tpr, thresholds = roc_curve(labels, probs)
-        auc = roc_auc_score(labels, probs)
-        # Youden's J = sensitivity + specificity - 1
-        j_scores = tpr - fpr
-        best_idx = int(np.argmax(j_scores))
-        best_thresh = float(thresholds[best_idx])
-        acc = float(np.mean((probs >= best_thresh) == labels))
+        rep = calibration_report_binary_head(labels, probs)
+        best_thresh = rep["optimal_threshold"]
+        auc = rep["auc_roc"]
+        acc = rep["accuracy_at_threshold"]
 
         results["optimal_thresholds"][name] = round(best_thresh, 4)
-        results["auc_roc"][name] = round(auc, 4)
+        results["auc_roc"][name] = round(auc, 4) if not np.isnan(auc) else float("nan")
         results["accuracy_at_threshold"][name] = round(acc, 4)
 
         logger.info(
             "[%s] AUC=%.3f  Youden J best thresh=%.3f  acc@thresh=%.3f",
-            name, auc, best_thresh, acc,
+            name, auc if not np.isnan(auc) else float("nan"), best_thresh, acc,
         )
 
     return results
