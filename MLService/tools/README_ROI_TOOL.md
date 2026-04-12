@@ -166,7 +166,7 @@ pip install --upgrade pydicom
 
 ## 📖 Подробная документация
 
-См. [`docs/ROI_ANNOTATION_GUIDE.md`](../docs/ROI_ANNOTATION_GUIDE.md) для:
+См. разделы выше и [MLService/README.md](../README.md) (пайплайн детекции / ROI) для:
 - Детальный workflow
 - Типичные ошибки и решения
 - Tips для ускорения

@@ -1,6 +1,6 @@
 # Контекст проекта для разработки и агентов
 
-Расширенная справка по репозиторию **MasterProject** (AI Doctor). Дополняет [README.md](../README.md) и [AGENTS.md](../AGENTS.md).
+Расширенная справка по репозиторию **MasterProject** (AI Doctor). Дополняет [README.md](README.md) и [AGENTS.md](AGENTS.md).
 
 ## Назначение продукта
 
@@ -37,18 +37,16 @@ MasterProject/
 ├── Backend/           # Vapor, миграции Fluent, HTTP к MLService
 ├── MLService/         # FastAPI app.py, services/, models/, tools/, experiments/
 ├── iOSApp/            # Xcode: MasterDoctor и модули
-├── docs/              # Хаб документации (README.md); подкаталог presentation/ — слайды и конференция
-├── scripts/
-│   └── presentation/  # create_* / export_* для DOCX и PDF/PPTX
-├── examples/          # Примеры / вспомогательные данные
-├── Nir/               # НИР, отчёты
 ├── README.md          # Главный обзор
+├── PROJECT_CONTEXT.md # Этот файл (контекст для людей и агентов)
 ├── QUICKSTART.md      # Запуск «с нуля» для демо детекции
 ├── TMJ_DETECTION_SETUP.md
-├── AGENTS.md          # Короткая памятка для ИИ-агентов
+└── AGENTS.md          # Короткая памятка для ИИ-агентов
 ```
 
-Уточнения по ML: структура `MLService/data/`, чекпойнты в `experiments/`, игнорируемые тяжёлые артефакты — в `MLService/.gitignore` и [MLService/models/README.md](../MLService/models/README.md). Обучение бинарного классификатора положения в Colab/DataSphere — ноутбук `MLService/google_colab/train_binary_position_classifier.ipynb`; выгрузка прогонов и пример локальной распаковки — [MLService/experiments/README.md](../MLService/experiments/README.md), сводка метрик — [POSITION_CLASSIFIER_EXPERIMENTS.md](../MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md).
+Расширенные материалы (презентации, НИР, оглавление `docs/`, примеры данных в `examples/`, черновики планов) **не версионируются** — при необходимости держите копию у себя; в `.gitignore` заданы каталоги `docs/`, `Nir/`, `examples/`, `scripts/presentation/`, `plan.md`.
+
+Уточнения по ML: структура `MLService/data/`, чекпойнты в `experiments/`, игнорируемые тяжёлые артефакты — в `MLService/.gitignore` и [MLService/models/README.md](MLService/models/README.md). Обучение бинарного классификатора положения в Colab/DataSphere — ноутбук `MLService/google_colab/train_binary_position_classifier.ipynb`; выгрузка прогонов — [MLService/experiments/README.md](MLService/experiments/README.md), сводка метрик — [MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md).
 
 ## HTTP API (актуальность)
 
@@ -73,13 +71,13 @@ MasterProject/
 
 ## Документы с историческим уклоном
 
-Некоторые файлы отражали более ранний API (например, JSON-загрузка одного файла). При противоречии с `AnalysisController` и `AnalysisEndpoint.swift` **приоритет у кода**. Имеет смысл постепенно выравнивать [Backend/README.md](../Backend/README.md) и корневой README.
+Некоторые внешние заметки отражали более ранний API (например, JSON-загрузка одного файла). При противоречии с `AnalysisController` и `AnalysisEndpoint.swift` **приоритет у кода**. Имеет смысл постепенно выравнивать [Backend/README.md](Backend/README.md) и корневой README.
 
 ## Локальные данные: публичная CBCT-когорта
 
-Для задачи классификации положения головок ВНЧС (коды из клинического DOCX) используются скрипты в `MLService/tools/` и каталоги **`MLService/data/cbct_public_zips/`** (архивы) и **`MLService/data/cbct_public_extracted/`** (распаковка + очистка под DICOM). Они **в `.gitignore`**; метки в репозитории — **`MLService/data/tmj_position_labels.json`** (генерируется из DOCX). Подробно: [cbct-public-cohort-dataset.md](cbct-public-cohort-dataset.md).
+Для задачи классификации положения головок ВНЧС (коды из клинического DOCX) используются скрипты в `MLService/tools/` и каталоги **`MLService/data/cbct_public_zips/`** (архивы) и **`MLService/data/cbct_public_extracted/`** (распаковка + очистка под DICOM). Они **в `.gitignore`**; метки в репозитории — **`MLService/data/tmj_position_labels.json`** (генерируется из DOCX). Подробный сценарий (DOCX → метки → Яндекс.Диск → zip) при необходимости храните локально вместе с каталогом `docs/` или опишите в wiki.
 
 ## Соглашения репозитория
 
 - Секреты, большие веса и локальные артефакты не коммитятся (см. корневой `.gitignore`, `MLService/.gitignore`).
-- Личные PDF и сгенерированные офисные файлы (в т.ч. в `docs/presentation/`) перечислены в `.gitignore`; источники — Markdown/HTML и скрипты в `scripts/presentation/`.
+- Каталог `.cursor/` в репозитории не версионируется; локальные планы Cursor при клонировании могут отсутствовать.
