@@ -37,7 +37,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,8 @@ class SagittalBinaryCVConfig:
     device: Optional[str] = None
     output_json: Optional[str] = None
     tqdm_disable: bool = False
+    # One summary line per epoch in the notebook (tqdm.write); survives leave=False on batch bar.
+    log_each_epoch: bool = True
 
 
 def _ensure_mlservice_on_path() -> None:
@@ -199,6 +201,7 @@ def _train_one_fold(
     criterion: nn.Module,
     device: torch.device,
     cfg: SagittalBinaryCVConfig,
+    fold_log_prefix: str = "",
 ) -> Dict[str, Any]:
     from training.utils.binary_metrics import (
         binary_metrics_at_threshold,
@@ -285,6 +288,16 @@ def _train_one_fold(
             epochs_no_improve = 0
         else:
             epochs_no_improve += 1
+
+        if cfg.log_each_epoch and not cfg.tqdm_disable:
+            auc_s = f"{val_auc:.4f}" if not np.isnan(val_auc) else "nan"
+            tag = f"{fold_log_prefix} " if fold_log_prefix else ""
+            best_s = f"{best_score:.4f}@{best_epoch}" if best_score > float("-inf") else "—"
+            tqdm.write(
+                f"{tag}ep {epoch}/{cfg.epochs}  train_loss={train_loss_avg:.4f}  val_auc={auc_s}  "
+                f"val_bal_acc@0.5={m05['balanced_accuracy']:.4f}  best_val_auc={best_s}  "
+                f"no_improve={epochs_no_improve}/{cfg.early_stopping_patience}  lr={lr:.2e}"
+            )
 
         if cfg.early_stopping_patience > 0 and epochs_no_improve >= cfg.early_stopping_patience:
             break
@@ -389,7 +402,13 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
 
         set_seed(cfg.seed + fold_idx)
         fold_out = _train_one_fold(
-            model, train_loader, val_loader, criterion, device, cfg
+            model,
+            train_loader,
+            val_loader,
+            criterion,
+            device,
+            cfg,
+            fold_log_prefix=f"fold {fold_idx + 1}/{cfg.n_splits}",
         )
         fold_out["fold"] = fold_idx
         fold_out["n_train_samples"] = len(train_recs)
