@@ -80,8 +80,22 @@ def draw_box_on_slice(ax, center_2d, half=64, color="lime", lw=1.5):
     ax.plot(cx, cy, "+", color=color, markersize=10, markeredgewidth=1.5)
 
 
-def show_slices_with_box(axes_row, vol_norm, center_zyx, half=64, color="lime", title_prefix=""):
-    """Plot axial/coronal/sagittal slices centred on detected joint."""
+def show_slices_with_box(
+    axes_row,
+    vol_norm,
+    center_zyx,
+    half=64,
+    color="lime",
+    title_prefix="",
+    *,
+    imshow_origin: str = "lower",
+):
+    """Plot axial / coronal / sagittal slices centred on detected joint.
+
+    ``imshow_origin``: ``\"lower\"`` (matplotlib default for many plots) or
+    ``\"upper\"`` — often closer to DICOM viewers where the first row of
+    ``pixel_array`` appears at the top of the screen.
+    """
     z, y, x = [int(c) for c in center_zyx]
     D, H, W = vol_norm.shape
 
@@ -92,7 +106,7 @@ def show_slices_with_box(axes_row, vol_norm, center_zyx, half=64, color="lime", 
     ]
 
     for ax, (sl, c2d, title) in zip(axes_row, slices):
-        ax.imshow(sl, cmap="gray", origin="lower", aspect="auto")
+        ax.imshow(sl, cmap="gray", origin=imshow_origin, aspect="auto")
         draw_box_on_slice(ax, c2d, half=half, color=color)
         ax.set_title(title, fontsize=8)
         ax.axis("off")
