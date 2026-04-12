@@ -247,9 +247,10 @@ def _train_one_fold(
         model.train()
         running_loss = 0.0
         n_batches = 0
+        fold_tag = fold_log_prefix if fold_log_prefix else f"fold {fold_idx + 1}/{cfg.n_splits}"
         pbar = tqdm(
             train_loader,
-            desc=f"Fold train ep {epoch}",
+            desc=f"{fold_tag} | ep {epoch} train",
             leave=False,
             disable=cfg.tqdm_disable,
         )
