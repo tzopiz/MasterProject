@@ -161,13 +161,13 @@ python train_3d.py --data_dir data/auto_crops --epochs 100
 В папке `tools/` находятся утилиты для работы с данными:
 
 - `roi_annotation_tool.py`: GUI приложение для быстрой разметки центров суставов.
-- `organize_dataset.py`: Скрипт для сортировки и переименования DICOM; флаг **`--anonymize`** — снятие PHI и публичный `manifest.json` без ФИО (см. `docs/cbct-public-cohort-dataset.md`).
+- `organize_dataset.py`: Скрипт для сортировки и переименования DICOM; флаг **`--anonymize`** — снятие PHI и публичный `manifest.json` без ФИО (сценарий когорты при необходимости — локально вне git).
 - `auto_crop_from_detector.py`: Автоматическое создание кропов с использованием детектора.
 - `manual_crop_tool.py`: (Legacy) Ручное создание кропов.
 - `create_portable_tool.py`: Создание portable-версии разметчика для передачи врачам/коллегам.
 - `visualize_detector.py`: Визуальная проверка работы детектора (рисует bounding box на снимке).
 - `extract_crops_from_annotations.py`: Создание кропов на основе JSON аннотаций (без детектора).
-Полный сценарий **публичной CBCT-когорты** (DOCX, Яндекс.Диск, zip, датасет): [docs/cbct-public-cohort-dataset.md](../docs/cbct-public-cohort-dataset.md).
+Полный сценарий **публичной CBCT-когорты** (DOCX, Яндекс.Диск, zip, датасет) при необходимости храните локально (каталог `docs/` вне git); скрипты — в `tools/`.
 
 - `parse_tmj_position_labels_docx.py`: Разбор DOCX с кодами 1–6 и блоками «Пациент N. …» в JSON (разметка положения головок ВНЧС).
 

@@ -1,3 +1,0 @@
-# Для экспорта презентации в PDF/PPTX
-playwright>=1.40.0
-python-pptx>=0.6.23
