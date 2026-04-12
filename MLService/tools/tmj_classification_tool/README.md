@@ -109,6 +109,7 @@ Format:
 ```
 tmj_classification_tool/
 ├── app.py                      # FastAPI application
+├── README.md                   # Единственный .md в каталоге
 ├── services/
 │   ├── file_cleaner.py         # Removes junk files
 │   ├── dicom_loader.py         # Scans and loads DICOM studies

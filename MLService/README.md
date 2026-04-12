@@ -3,6 +3,10 @@
 Сервис для автоматического анализа КЛКТ (CBCT) снимков ВНЧС (TMJ).
 Этот проект предоставляет API для анализа DICOM файлов, а также инструменты для обучения моделей детекции и сегментации.
 
+## Документация по папкам
+
+Краткие входы: [models/README.md](models/README.md) · [tools/README.md](tools/README.md) · [training/README.md](training/README.md) · [services/README.md](services/README.md) · [utils/README.md](utils/README.md) · [data/README.md](data/README.md) · [tests/README.md](tests/README.md) · [docs/README.md](docs/README.md) · [validation/README.md](validation/README.md) · [experiments/README.md](experiments/README.md) · [google_colab/README.md](google_colab/README.md)
+
 ---
 
 ## 🚀 Текущий пайплайн (Pipeline)
@@ -30,8 +34,8 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 ### 3. Классификация положения (Position Classification)
 Предсказание положения головок ВНЧС (сагитталь + фронталь, лево + право).
 - **Метки:** `data/tmj_position_labels.json` (6 кодов, 4 метки на пациента).
-- **Документация:** [docs/TMJ_POSITION_CLASSIFIER.md](docs/TMJ_POSITION_CLASSIFIER.md)
-- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md) и сводка прогонов [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md)
+- **Документация:** [docs/README.md](docs/README.md)
+- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md); длинная сводка прогонов — [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt)
 
 #### 3-классовый (v1–v4, baseline)
 - **Обучение:** `train_tmj_position_classifier.py`
@@ -161,13 +165,13 @@ python train_3d.py --data_dir data/auto_crops --epochs 100
 В папке `tools/` находятся утилиты для работы с данными:
 
 - `roi_annotation_tool.py`: GUI приложение для быстрой разметки центров суставов.
-- `organize_dataset.py`: Скрипт для сортировки и переименования DICOM; флаг **`--anonymize`** — снятие PHI и публичный `manifest.json` без ФИО (сценарий когорты при необходимости — локально вне git).
+- `organize_dataset.py`: Скрипт для сортировки и переименования DICOM; флаг **`--anonymize`** — снятие PHI и публичный `manifest.json` без ФИО.
 - `auto_crop_from_detector.py`: Автоматическое создание кропов с использованием детектора.
 - `manual_crop_tool.py`: (Legacy) Ручное создание кропов.
 - `create_portable_tool.py`: Создание portable-версии разметчика для передачи врачам/коллегам.
 - `visualize_detector.py`: Визуальная проверка работы детектора (рисует bounding box на снимке).
 - `extract_crops_from_annotations.py`: Создание кропов на основе JSON аннотаций (без детектора).
-Полный сценарий **публичной CBCT-когорты** (DOCX, Яндекс.Диск, zip, датасет) при необходимости храните локально (каталог `docs/` вне git); скрипты — в `tools/`.
+Полный сценарий **публичной CBCT-когорты** (DOCX, Яндекс.Диск, zip, датасет) — см. скрипты в `tools/` и разделы про данные в этом README.
 
 - `parse_tmj_position_labels_docx.py`: Разбор DOCX с кодами 1–6 и блоками «Пациент N. …» в JSON (разметка положения головок ВНЧС).
 
@@ -207,14 +211,13 @@ python tools/sync_cbct_cohort.py --download
 
 ## 📊 Мониторинг обучения
 
-Для слежения за процессом обучения (Detector или Segmentation) используйте логи в терминале или файлы в `experiments/`.
+Для Detector / Segmentation смотрите вывод процесса в терминале и каталог прогона `experiments/<имя>/` (`train.log`, `metrics.jsonl`, `best_model.pth`, `config.json`).
 
-**Полезные команды:**
-- `tail -f <logfile>`: Следить в реальном времени.
-- `grep "best" <logfile>`: Найти лучшие эпохи.
-- `grep "Val MAE" <logfile>`: Посмотреть метрики валидации.
-
-Подробнее см. `TRAINING_MONITORING.md` (если доступен).
+**Ориентиры:**
+- `ls -la experiments/detector_*/` — какие прогоны есть.
+- `tail -f experiments/<прогон>/train.log` — если лог пишется в файл (зависит от скрипта).
+- `grep -E "Epoch|Saved best|MAE|Early"` — по сохранённому логу или выводу в терминале.
+- `cat experiments/<прогон>/config.json` — параметры запуска.
 
 ---
 

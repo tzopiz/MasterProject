@@ -1,8 +1,14 @@
-# ROI Annotation Tool
+# MLService / tools
+
+Скрипты и небольшие приложения для датасетов, разметки, кропов и визуализации. Запуск из каталога **`MLService/`**.
+
+---
+
+## ROI Annotation Tool
 
 Быстрый инструмент для разметки координат центров ВНЧС (левого и правого) на CBCT сканах.
 
-## 🎯 Назначение
+### 🎯 Назначение
 
 Создать датасет аннотаций для обучения **TMJ ROI Detector** - модели которая автоматически находит координаты суставов в полном CBCT скане.
 
@@ -11,7 +17,7 @@
 
 ---
 
-## 🚀 Quick Start
+### 🚀 Quick Start
 
 ```bash
 # 1. Активировать окружение
@@ -35,7 +41,7 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-## 📋 Доступные DICOM сканы
+### 📋 Доступные DICOM сканы
 
 ```bash
 # Список всех доступных серий для разметки:
@@ -51,13 +57,13 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-## 🎮 Управление
+### 🎮 Управление
 
-### **Мышь:**
+#### **Мышь:**
 - **Left Click** - поставить точку (LEFT или RIGHT в зависимости от режима)
 - **Mouse Wheel** - навигация по срезам (вверх/вниз)
 
-### **Клавиатура:**
+#### **Клавиатура:**
 - **L** - режим LEFT TMJ (зеленый маркер)
 - **R** - режим RIGHT TMJ (синий маркер)
 - **S** - сохранить аннотацию (требует оба маркера)
@@ -68,22 +74,22 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-## 📊 Workflow
+### 📊 Workflow
 
-### **Шаг 1: Найти правильный срез**
+#### **Шаг 1: Найти правильный срез**
 
 - Используй **Mouse Wheel** для навигации
 - Найди аксиальный срез где видны **ОБА мыщелка** одновременно
 - Обычно это середина скана (~slice 250-350 из 576)
 
-### **Шаг 2: Поставить маркеры**
+#### **Шаг 2: Поставить маркеры**
 
 1. Tool стартует в режиме **LEFT TMJ** (зеленый)
 2. Кликни на **центр левого мыщелка** (округлая головка)
 3. Tool автоматически переключится в режим **RIGHT TMJ** (синий)
 4. Кликни на **центр правого мыщелка**
 
-### **Шаг 3: Сохранить и продолжить**
+#### **Шаг 3: Сохранить и продолжить**
 
 - Нажми **'S'** для сохранения
 - Нажми **'Q'** для выхода
@@ -91,7 +97,7 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-## 📁 Output Format
+### 📁 Output Format
 
 **Файл:** `data/roi_annotations/{scan_id}_rois.json`
 
@@ -114,7 +120,7 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-## ✅ Quality Checklist
+### ✅ Quality Checklist
 
 Хорошая аннотация:
 - [ ] Оба мыщелка видны на выбранном срезе
@@ -124,9 +130,9 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-## 🎯 Что размечать
+### 🎯 Что размечать
 
-### ✅ **Правильно:**
+#### ✅ **Правильно:**
 ```
 Кликай на центр МЫЩЕЛКА (condyle head)
      ⚪  ← Сюда!
@@ -136,7 +142,7 @@ python tools/roi_annotation_tool.py \
 ╱_________╲
 ```
 
-### ❌ **Неправильно:**
+#### ❌ **Неправильно:**
 ```
 НЕ кликай:
 - На суставную ямку (fossa) сверху
@@ -146,35 +152,25 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-## 🐛 Troubleshooting
+### 🐛 Troubleshooting
 
-### **OpenCV window не открывается**
+#### **OpenCV window не открывается**
 ```bash
 pip install --upgrade opencv-python opencv-contrib-python
 ```
 
-### **pydicom ошибка**
+#### **pydicom ошибка**
 ```bash
 pip install --upgrade pydicom
 ```
 
-### **Tool медленный**
+#### **Tool медленный**
 - Первая загрузка DICOM занимает ~30 сек (нормально)
 - Навигация после загрузки должна быть быстрой
 
 ---
 
-## 📖 Подробная документация
-
-См. разделы выше и [MLService/README.md](../README.md) (пайплайн детекции / ROI) для:
-- Детальный workflow
-- Типичные ошибки и решения
-- Tips для ускорения
-- Примеры и визуализации
-
----
-
-## 🎓 Следующие шаги
+### 🎓 Следующие шаги
 
 После создания 20-30 аннотаций:
 
@@ -194,3 +190,25 @@ pip install --upgrade pydicom
 
 **Ready? Запускай tool и начинай разметку!** 🚀
 
+
+
+---
+
+## Подкаталог tmj_classification_tool
+
+Веб-инструмент разметки: [tmj_classification_tool/README.md](tmj_classification_tool/README.md) (в каталоге инструмента — только этот README).
+
+---
+
+## Группы скриптов (ориентир)
+
+| Направление | Примеры файлов |
+|-------------|----------------|
+| Датасет и когорта | `organize_dataset.py`, `prepare_cbct_cohort.py`, `download_yandex_cbct_cohort.py`, `build_cbct_zip_dataset.py`, `sync_cbct_cohort.py` |
+| Детектор и кропы | `auto_crop_from_detector.py`, `visualize_detector.py`, `extract_crops_from_annotations.py` |
+| Разметка положения | `parse_tmj_position_labels_docx.py`, `batch_annotate.py` |
+| Heatmap / оценка | `preprocess_heatmap_volumes.py`, `evaluate_detector.py` |
+| Визуализация | `visualize_crops.py`, `visualize_3d.py`, `plot_merged_hu_histograms.py` |
+| Прочее | `anonymize_labels.py`, `dicom_phi_strip.py`, `create_portable_tool.py` |
+
+Полный сценарий пайплайна: [../README.md](../README.md).

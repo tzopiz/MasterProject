@@ -87,3 +87,9 @@ GET /api/analysis/{taskId}
 - `analysis_tasks` - задачи анализа
 - `analysis_results` - результаты анализа
 
+## См. также
+
+- [README.md](../README.md) — обзор репозитория и быстрый старт
+- [AGENTS.md](../AGENTS.md) — правила для агентов и документации
+- [iOSApp/README.md](../iOSApp/README.md) — клиент
+
