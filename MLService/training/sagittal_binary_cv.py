@@ -14,12 +14,11 @@ Training uses ``TMJBinaryPositionClassifier`` with loss only on the sagittal hea
 (shared backbone; frontal head receives no gradient).
 
 **Logging:** when ``output_json`` is set, the report includes per-fold
-``epoch_history`` (train loss, val AUC, val acc/balanced acc/F1 @ 0.5, LR each
-epoch) plus final metrics at the Youden threshold fit on train. The same path
-is **rewritten after each completed fold** (atomic write) with ``status`` /
-``completed_folds`` / ``n_splits`` so another process or notebook can read
-partial CV while training continues; the current fold appears only after it
-finishes.
+``epoch_history`` plus final metrics at the Youden threshold fit on train. The
+JSON path is **rewritten after each completed fold** (atomic) with ``status`` /
+``completed_folds`` / ``n_splits``. If ``log_epochs_jsonl`` is true, every epoch
+appends one line to ``<stem>_epochs.jsonl`` next to ``output_json`` so crashes
+still leave a **metric trail** (not weights — use checkpoints for resume).
 """
 
 from __future__ import annotations
@@ -126,6 +125,18 @@ def _write_cv_report_json_atomic(path_str: str, report: Dict[str, Any]) -> None:
     tmp.replace(p)
 
 
+def _epoch_jsonl_path(output_json: str) -> Path:
+    p = Path(output_json)
+    return p.with_name(p.stem + "_epochs.jsonl")
+
+
+def _append_epoch_jsonl(path: Path, row: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(_json_sanitize(row), ensure_ascii=False)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
 @dataclass
 class SagittalBinaryCVConfig:
     """Hyperparameters and paths for :func:`run_sagittal_binary_cv`."""
@@ -157,6 +168,8 @@ class SagittalBinaryCVConfig:
     tqdm_disable: bool = False
     # One summary line per epoch in the notebook (tqdm.write); survives leave=False on batch bar.
     log_each_epoch: bool = True
+    # If True and output_json is set, append one JSON object per epoch to ``<stem>_epochs.jsonl``.
+    log_epochs_jsonl: bool = True
 
 
 def _ensure_mlservice_on_path() -> None:
@@ -202,6 +215,8 @@ def _train_one_fold(
     device: torch.device,
     cfg: SagittalBinaryCVConfig,
     fold_log_prefix: str = "",
+    fold_idx: int = 0,
+    epoch_jsonl_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     from training.utils.binary_metrics import (
         binary_metrics_at_threshold,
@@ -271,6 +286,11 @@ def _train_one_fold(
                 "lr": lr,
             }
         )
+
+        if epoch_jsonl_path is not None:
+            row = dict(epoch_history[-1])
+            row["fold"] = fold_idx
+            _append_epoch_jsonl(epoch_jsonl_path, row)
 
         if not np.isnan(val_auc):
             scheduler.step(val_auc)
@@ -368,6 +388,12 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
     )
     binary_records = binarize_labels(all_records, cfg.crop_dir)
 
+    epoch_jsonl_path: Optional[Path] = None
+    if cfg.output_json and cfg.log_epochs_jsonl:
+        epoch_jsonl_path = _epoch_jsonl_path(cfg.output_json)
+        epoch_jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+        epoch_jsonl_path.write_text("", encoding="utf-8")
+
     fold_rows: List[Dict[str, Any]] = []
     for fold_idx, (tr_idx, va_idx) in enumerate(
         iter_stratified_group_kfold_indices(
@@ -409,6 +435,8 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
             device,
             cfg,
             fold_log_prefix=f"fold {fold_idx + 1}/{cfg.n_splits}",
+            fold_idx=fold_idx,
+            epoch_jsonl_path=epoch_jsonl_path,
         )
         fold_out["fold"] = fold_idx
         fold_out["n_train_samples"] = len(train_recs)
