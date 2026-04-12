@@ -12,6 +12,11 @@ report that must not be tuned.
 
 Training uses ``TMJBinaryPositionClassifier`` with loss only on the sagittal head
 (shared backbone; frontal head receives no gradient).
+
+**Logging:** when ``output_json`` is set, the written report includes per-fold
+``epoch_history`` (train loss, val AUC, val acc/balanced acc/F1 @ 0.5, LR each
+epoch) plus final metrics at the Youden threshold fit on train — enough to
+rebuild learning curves in Python or Excel without separate ``metrics.jsonl``.
 """
 
 from __future__ import annotations
@@ -177,6 +182,7 @@ def _train_one_fold(
     best_epoch = 0
     best_score = float("-inf")
     epochs_no_improve = 0
+    epoch_history: List[Dict[str, Any]] = []
 
     for epoch in range(1, cfg.epochs + 1):
         model.train()
@@ -206,6 +212,21 @@ def _train_one_fold(
         val_probs = torch.sigmoid(val_logits).numpy()
         val_y = val_labels.numpy().astype(int)
         val_auc = binary_roc_auc(val_y, val_probs)
+
+        train_loss_avg = running_loss / max(n_batches, 1)
+        lr = float(optimizer.param_groups[0]["lr"])
+        m05 = binary_metrics_at_threshold(val_y, val_probs, 0.5)
+        epoch_history.append(
+            {
+                "epoch": epoch,
+                "train_loss": float(train_loss_avg),
+                "val_auc": float(val_auc) if not np.isnan(val_auc) else None,
+                "val_accuracy_at_0.5": float(m05["accuracy"]),
+                "val_balanced_accuracy_at_0.5": float(m05["balanced_accuracy"]),
+                "val_f1_minority_at_0.5": float(m05["f1_minority"]),
+                "lr": lr,
+            }
+        )
 
         if not np.isnan(val_auc):
             scheduler.step(val_auc)
@@ -255,6 +276,7 @@ def _train_one_fold(
         "val_f1_minority": val_m["f1_minority"],
         "val_accuracy_at_threshold": val_m["accuracy"],
         "val_confusion_matrix_at_threshold": val_m["confusion_matrix"],
+        "epoch_history": epoch_history,
     }
 
 
@@ -330,6 +352,8 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
             model, train_loader, val_loader, criterion, device, cfg
         )
         fold_out["fold"] = fold_idx
+        fold_out["n_train_samples"] = len(train_recs)
+        fold_out["n_val_samples"] = len(val_recs)
         fold_rows.append(fold_out)
 
     keys = (
