@@ -79,7 +79,6 @@ db.sqlite-wal
 models/*.pth
 models/*.pt
 models/*.onnx
-!MLService/models/tmj_detector_best.pth
 
 # ML Service - Experiments and Notebooks
 # Игнорируем всё под experiments/, кроме корневого README и любых README.md в подпапках прогонов.

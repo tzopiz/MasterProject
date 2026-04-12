@@ -6,9 +6,8 @@
 
 `app.py` по умолчанию ожидает **`tmj_detector_best.pth`** в этой папке (или `MODEL_PATH` / последний `experiments/detector_*/best_model.pth`).
 
-- Файл **`tmj_detector_best.pth`** **разрешён в git** (исключение в `.gitignore`) — его можно закоммитить для релиза «из коробки».
-- Остальные `*.pth` / `*.pt` / `*.onnx` в `models/` по-прежнему не коммитятся.
-- Крупные веса на GitHub — при необходимости [Git LFS](https://git-lfs.com/).
+- Веса в **`MLService/models/`** можно хранить в git вместе с кодом (ограничения размера репозитория GitHub — см. [документацию](https://docs.github.com/en/repositories/working-with-files/managing-large-files); при необходимости [Git LFS](https://git-lfs.com/)).
+- В корне репозитория каталог **`models/`** (не внутри MLService) по-прежнему в корневом `.gitignore` для локальных больших файлов.
 
 ```bash
 cp experiments/<прогон>/best_model.pth models/tmj_detector_best.pth
@@ -33,4 +32,4 @@ export MODEL_PATH=models/tmj_detector_best.pth
 
 ## Сегментация и прочие веса
 
-U-Net и экспериментальные чекпойнты — в `experiments/` и локально в `models/`; в git не тащите, кроме **`tmj_detector_best.pth`**.
+Дополнительные чекпойнты (U-Net и т.д.) можно держать в этой папке и коммитить; тяжёлые прогоны по-прежнему удобнее оставлять в `experiments/` (см. правила в корневом `.gitignore` для `MLService/experiments/`).
