@@ -7,7 +7,8 @@ Uses the same inference as ``auto_crop_from_detector.py``. Orthogonal views
 reuse ``visualize_detection.show_slices_with_box`` so layout matches
 ``tools/visualize_detection.py`` (Axial → Coronal → Sagittal).
 
-If slices look vertically flipped vs your PACS, try ``--imshow-origin upper``.
+Default display matches ``roi_annotation_tool`` (first array row at top).
+Use ``--imshow-origin lower`` for the old matplotlib convention.
 
 Usage:
     ./venv/bin/python tools/visualize_heatmap_detector_centers.py \\
@@ -50,8 +51,8 @@ def main() -> None:
     p.add_argument(
         "--imshow-origin",
         choices=("lower", "upper"),
-        default="lower",
-        help="Matplotlib imshow origin; 'upper' often matches DICOM viewers (first row at top).",
+        default="upper",
+        help="Matplotlib imshow origin; default upper = same as roi_annotation_tool (OpenCV).",
     )
     p.add_argument(
         "--box-half",

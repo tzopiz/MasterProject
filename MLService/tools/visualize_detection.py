@@ -88,13 +88,14 @@ def show_slices_with_box(
     color="lime",
     title_prefix="",
     *,
-    imshow_origin: str = "lower",
+    imshow_origin: str = "upper",
 ):
     """Plot axial / coronal / sagittal slices centred on detected joint.
 
-    ``imshow_origin``: ``\"lower\"`` (matplotlib default for many plots) or
-    ``\"upper\"`` — often closer to DICOM viewers where the first row of
-    ``pixel_array`` appears at the top of the screen.
+    ``imshow_origin``: default ``\"upper\"`` so the first row of each 2D slice
+    is at the **top** of the figure — same convention as ``roi_annotation_tool``
+    (OpenCV) and typical axial viewing. Use ``\"lower\"`` only if you need old
+    matplotlib-style plots.
     """
     z, y, x = [int(c) for c in center_zyx]
     D, H, W = vol_norm.shape
