@@ -2,7 +2,7 @@
 
 Магистерский проект: iOS приложение с ИИ для анализа височно-нижнечелюстного сустава (ВНЧС) по снимкам КЛКТ.
 
-**Документация:** [docs/README.md](docs/README.md) (оглавление) · для ИИ-агентов: [AGENTS.md](AGENTS.md) · контекст: [docs/project-context.md](docs/project-context.md)
+**Документация:** для ИИ-агентов — [AGENTS.md](AGENTS.md); контекст системы — [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
 ## Архитектура
 
@@ -141,9 +141,8 @@ MasterProject/
 ├── Backend/
 ├── MLService/
 ├── iOSApp/MasterDoctor/       # Xcode-проект и модули
-├── docs/                      # Оглавление и контекст (в т.ч. для агентов)
-├── examples/
 ├── README.md
+├── PROJECT_CONTEXT.md         # Контекст для разработки и агентов
 ├── AGENTS.md
 ├── QUICKSTART.md
 └── TMJ_DETECTION_SETUP.md
@@ -193,12 +192,13 @@ curl http://localhost:8001/health
 
 ## Документация
 
-- [Оглавление docs/](docs/README.md)
+- [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) — термины, поток данных, карта каталогов
 - [Backend README](Backend/README.md)
 - [ML Service README](MLService/README.md)
 - [Быстрый старт детекции](QUICKSTART.md)
 - [Настройка TMJ pipeline](TMJ_DETECTION_SETUP.md)
-- [Публичная CBCT-когорта: метки и сбор датасета](docs/cbct-public-cohort-dataset.md)
+
+Расширенные материалы (презентации, НИР, сценарии когорты в `docs/`) при необходимости храните **локально** — в git они не входят (см. `.gitignore`).
 
 Черновики планов в каталоге `.cursor/plans/` при работе в Cursor могут быть только локально (каталог `.cursor/` не в git).
 

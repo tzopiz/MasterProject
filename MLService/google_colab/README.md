@@ -86,4 +86,4 @@ tmj_data/
 
 ## Связь с сервисом
 
-Обучение «в репозитории» для продакшена описано в [MLService/README.md](../README.md) (`train_tmj_position_classifier.py`, `docs/TMJ_POSITION_CLASSIFIER.md`). Ноутбуки здесь — исследовательский контур (Colab/DataSphere); веса и отчёты выгружаются вручную.
+Обучение «в репозитории» для продакшена описано в [MLService/README.md](../README.md) (`train_tmj_position_classifier.py`, [TMJ_POSITION_CLASSIFIER.md](../docs/TMJ_POSITION_CLASSIFIER.md)). Ноутбуки здесь — исследовательский контур (Colab/DataSphere); веса и отчёты выгружаются вручную.

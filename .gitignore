@@ -91,14 +91,17 @@ MLService/validation/reports/
 .wandb/
 *.tensorboard
 
-# Personal / generated exports (presentation: docs/presentation + scripts/presentation)
+# Локальные материалы вне основного репозитория (клон может не содержать; не коммитить)
+/docs/
+/Nir/
+/scripts/presentation/
+/plan.md
+
+# Личные / сгенерированные файлы
 /diplom.pdf
-/docs/presentation/presentation.pdf
-/docs/presentation/presentation.pptx
 /тезисы_правила.pdf
 *.pages
-/docs/presentation/план_доклада_конференция.docx
-/docs/presentation/тезисы.docx
-/docs/presentation/доклад_конференция.docx
 
+# Черновики агентских планов под MLService (при необходимости — только локально)
 MLService/docs/superpowers/
+
