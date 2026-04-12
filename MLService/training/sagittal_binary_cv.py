@@ -42,13 +42,21 @@ def _reconcile_cv_paths_if_missing(cfg: "SagittalBinaryCVConfig") -> None:
     """
     from training.utils.datasphere_env import (
         default_tmj_dataset_dir,
+        resolve_detector_crop_dir,
         resolve_labels_path,
         resolve_manifest_path,
     )
 
+    crop = Path(cfg.crop_dir).resolve()
+    if not crop.is_dir():
+        fixed = resolve_detector_crop_dir(default_tmj_dataset_dir())
+        logger.warning("crop_dir missing (%s) — using %s", crop, fixed)
+        cfg.crop_dir = str(fixed)
+        cfg.dataset_root = str(fixed)
+        crop = Path(cfg.crop_dir).resolve()
+
     mp = Path(cfg.manifest_path)
     lp = Path(cfg.labels_path)
-    crop = Path(cfg.crop_dir).resolve()
     hub = crop.parent if crop.parent.is_dir() else default_tmj_dataset_dir()
 
     if not mp.is_file():

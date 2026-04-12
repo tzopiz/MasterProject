@@ -50,6 +50,26 @@ def test_manifest_resolves_manifest_json(tmp_path):
     assert Path(kw["manifest_path"]).name == "manifest.json"
 
 
+def test_resolve_crop_prefers_filestore_when_dataset_dir_missing(monkeypatch, tmp_path):
+    """Binary notebook layout: crops only under filestore, no datasets/tmj mount."""
+    monkeypatch.setattr(dse, "is_datasphere", lambda: True)
+    fs = tmp_path / "filestore"
+    monkeypatch.setattr(dse, "FILESTORE", fs)
+    crops = fs / "detector_crops_v2"
+    (crops / "study_0001").mkdir(parents=True)
+    missing = tmp_path / "datasets" / "tmj"
+    assert not missing.is_dir()
+    assert dse.resolve_detector_crop_dir(missing) == crops.resolve()
+
+
+def test_resolve_crop_tmj_crop_dir_env(tmp_path, monkeypatch):
+    custom = tmp_path / "my_v2"
+    custom.mkdir()
+    monkeypatch.setenv("TMJ_CROP_DIR", str(custom))
+    assert dse.resolve_detector_crop_dir(tmp_path / "nowhere") == custom.resolve()
+    monkeypatch.delenv("TMJ_CROP_DIR", raising=False)
+
+
 def test_manifest_env_override(tmp_path, monkeypatch):
     d = tmp_path / "tmj"
     (d / "detector_crops_v2").mkdir(parents=True)

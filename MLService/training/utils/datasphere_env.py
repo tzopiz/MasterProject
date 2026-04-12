@@ -8,9 +8,12 @@ or manual wget from GitHub Releases):
 - Манифест: ``manifest_private.json`` **или** ``manifest.json`` в каталоге датасета;
   если в датасете только кропы — часто лежит в ``/home/jupyter/filestore/`` (как после wget в ``train_binary_position_classifier``).
 
-Переопределение путей: ``TMJ_DATASET_DIR``, ``TMJ_MANIFEST_PATH``, ``TMJ_LABELS_PATH``.
+Переопределение путей: ``TMJ_DATASET_DIR``, ``TMJ_CROP_DIR`` (прямо на каталог с ``study_*``),
+``TMJ_MANIFEST_PATH``, ``TMJ_LABELS_PATH``.
 
-- ``/home/jupyter/datasets/tmj/detector_crops_v2/study_XXXX/*.nii.gz``
+Кропы: сначала под датасетом ``.../datasets/tmj/detector_crops_v2``, иначе (как в
+``train_binary_position_classifier`` без смонтированного датасета) —
+``/home/jupyter/filestore/detector_crops_v2``.
 
 Writable artifacts: ``/home/jupyter/filestore/experiments/`` (dataset mount is read-only).
 
@@ -46,16 +49,35 @@ def default_tmj_dataset_dir() -> Path:
 
 def resolve_detector_crop_dir(dataset_dir: Optional[Path] = None) -> Path:
     """
-    Prefer ``detector_crops_v2`` (DataSphere / GitHub release), else ``detector_crops``.
+    Resolve directory that contains ``study_XXXX/`` subfolders with NIfTI crops.
+
+    Order:
+
+    1. ``TMJ_CROP_DIR`` — если задан и существует (указывает на ``detector_crops_v2`` или аналог).
+    2. ``{dataset_dir}/detector_crops_v2`` then ``detector_crops`` — если ``dataset_dir`` существует.
+    3. На DataSphere: ``/home/jupyter/filestore/detector_crops_v2`` (типичный layout binary-ноутбука,
+       когда датасет ``datasets/tmj`` не подключён, а кропы распакованы в filestore).
+
+    If nothing exists, returns the first candidate path (for downstream error messages).
     """
-    base = dataset_dir or default_tmj_dataset_dir()
-    v2 = base / "detector_crops_v2"
-    v1 = base / "detector_crops"
-    if v2.is_dir():
-        return v2
-    if v1.is_dir():
-        return v1
-    return v2
+    env = os.environ.get("TMJ_CROP_DIR", "").strip()
+    if env:
+        p = Path(env).expanduser().resolve()
+        if p.is_dir():
+            return p
+    base = Path(dataset_dir) if dataset_dir is not None else default_tmj_dataset_dir()
+    base = base.resolve()
+    candidates: list[Path] = []
+    if base.is_dir():
+        candidates.extend([base / "detector_crops_v2", base / "detector_crops"])
+    if is_datasphere():
+        candidates.extend([FILESTORE / "detector_crops_v2", FILESTORE / "detector_crops"])
+    for p in candidates:
+        if p.is_dir():
+            return p.resolve()
+    if is_datasphere():
+        return (FILESTORE / "detector_crops_v2").resolve()
+    return (base / "detector_crops_v2").resolve()
 
 
 def _manifest_search_paths(dataset_dir: Path) -> list[Path]:
