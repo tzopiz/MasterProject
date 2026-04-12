@@ -4,29 +4,35 @@ Unit tests for models.tmj_position_classifier
 All tests use synthetic in-memory tensors — no DICOM files needed.
 """
 
-import sys
 import os
+import sys
 
 import pytest
 import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from models.tmj_position_classifier import TMJPositionClassifier, get_position_classifier
-
+from models.tmj_position_classifier import (
+    TMJPositionClassifier,
+    get_position_classifier,
+)
 
 # ---------------------------------------------------------------------------
 # Architecture / forward pass
 # ---------------------------------------------------------------------------
 
+
 class TestTMJPositionClassifierForward:
     """Verify output shapes for various input sizes."""
 
     @pytest.mark.parametrize("batch_size", [1, 2])
-    @pytest.mark.parametrize("input_shape", [
-        (32, 48, 48),
-        (16, 24, 24),
-    ])
+    @pytest.mark.parametrize(
+        "input_shape",
+        [
+            (32, 48, 48),
+            (16, 24, 24),
+        ],
+    )
     def test_output_count_and_shape(self, batch_size, input_shape):
         """Forward pass must return exactly 4 tensors, each (B, 3)."""
         model = TMJPositionClassifier()
@@ -38,9 +44,7 @@ class TestTMJPositionClassifierForward:
 
         assert len(outputs) == 4, "Expected 4 output heads"
         for out in outputs:
-            assert out.shape == (batch_size, 3), (
-                f"Expected ({batch_size}, 3), got {out.shape}"
-            )
+            assert out.shape == (batch_size, 3), f"Expected ({batch_size}, 3), got {out.shape}"
 
     def test_output_order(self):
         """Outputs come in the order (sag_right, sag_left, fr_right, fr_left)."""
@@ -79,6 +83,7 @@ class TestTMJPositionClassifierForward:
 # Loss computation
 # ---------------------------------------------------------------------------
 
+
 class TestLossComputation:
     """Verify that the four CrossEntropyLoss terms can be summed."""
 
@@ -110,14 +115,13 @@ class TestLossComputation:
         # Gradients should exist and be finite for all parameters
         for name, param in model.named_parameters():
             if param.grad is not None:
-                assert torch.isfinite(param.grad).all(), (
-                    f"Non-finite gradient in {name}"
-                )
+                assert torch.isfinite(param.grad).all(), f"Non-finite gradient in {name}"
 
 
 # ---------------------------------------------------------------------------
 # Parameter count sanity check
 # ---------------------------------------------------------------------------
+
 
 class TestModelParameters:
     def test_has_parameters(self):
@@ -130,22 +134,21 @@ class TestModelParameters:
         model = TMJPositionClassifier()
         head_params = {
             "sag_right": set(id(p) for p in model.head_sag_right.parameters()),
-            "sag_left":  set(id(p) for p in model.head_sag_left.parameters()),
-            "fr_right":  set(id(p) for p in model.head_fr_right.parameters()),
-            "fr_left":   set(id(p) for p in model.head_fr_left.parameters()),
+            "sag_left": set(id(p) for p in model.head_sag_left.parameters()),
+            "fr_right": set(id(p) for p in model.head_fr_right.parameters()),
+            "fr_left": set(id(p) for p in model.head_fr_left.parameters()),
         }
         names = list(head_params.keys())
         for i in range(len(names)):
             for j in range(i + 1, len(names)):
                 overlap = head_params[names[i]] & head_params[names[j]]
-                assert not overlap, (
-                    f"Heads {names[i]} and {names[j]} share parameters"
-                )
+                assert not overlap, f"Heads {names[i]} and {names[j]} share parameters"
 
 
 # ---------------------------------------------------------------------------
 # Factory function
 # ---------------------------------------------------------------------------
+
 
 class TestGetPositionClassifier:
     def test_factory_returns_model(self):

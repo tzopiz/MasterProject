@@ -3,14 +3,15 @@ Tests for training.tmj_position_label_table.binarize_labels
 """
 
 import json
-import sys
 import os
-import pytest
+import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from training.tmj_position_label_table import build_index, binarize_labels
+from training.tmj_position_label_table import binarize_labels, build_index
 
 MANIFEST = {
     "studies": [
@@ -25,16 +26,28 @@ LABELS = {
             "patient_number": 1,
             "name_raw": "Patient A",
             "labels": {
-                "sagittal": {"right": 1, "left": 2},   # right=central(0), left=non-central(1)
-                "frontal":  {"right": 4, "left": 6},   # right=central(0), left=non-central(2→1)
+                "sagittal": {
+                    "right": 1,
+                    "left": 2,
+                },  # right=central(0), left=non-central(1)
+                "frontal": {
+                    "right": 4,
+                    "left": 6,
+                },  # right=central(0), left=non-central(2→1)
             },
         },
         {
             "patient_number": 2,
             "name_raw": "Patient B",
             "labels": {
-                "sagittal": {"right": 3, "left": 1},   # right=non-central(2→1), left=central(0)
-                "frontal":  {"right": 5, "left": 4},   # right=non-central(1→1), left=central(0)
+                "sagittal": {
+                    "right": 3,
+                    "left": 1,
+                },  # right=non-central(2→1), left=central(0)
+                "frontal": {
+                    "right": 5,
+                    "left": 4,
+                },  # right=non-central(1→1), left=central(0)
             },
         },
     ],
@@ -69,22 +82,22 @@ class TestBinarizeLabels:
         """sag_right=0 (central) → binary sag=0"""
         binary = binarize_labels(records, str(tmp_path))
         r = next(r for r in binary if r["study_id"] == "study_0001" and r["side"] == "right")
-        assert r["sag"] == 0   # original sag_right=0 (central)
-        assert r["fr"] == 0    # original fr_right=0 (central)
+        assert r["sag"] == 0  # original sag_right=0 (central)
+        assert r["fr"] == 0  # original fr_right=0 (central)
 
     def test_non_central_class_1_maps_to_1(self, records, tmp_path):
         """sag_left=1 (anterior) → binary sag=1"""
         binary = binarize_labels(records, str(tmp_path))
         r = next(r for r in binary if r["study_id"] == "study_0001" and r["side"] == "left")
-        assert r["sag"] == 1   # original sag_left=1 (non-central)
-        assert r["fr"] == 1    # original fr_left=2 (non-central)
+        assert r["sag"] == 1  # original sag_left=1 (non-central)
+        assert r["fr"] == 1  # original fr_left=2 (non-central)
 
     def test_non_central_class_2_maps_to_1(self, records, tmp_path):
         """sag_right=2 (posterior) → binary sag=1"""
         binary = binarize_labels(records, str(tmp_path))
         r = next(r for r in binary if r["study_id"] == "study_0002" and r["side"] == "right")
-        assert r["sag"] == 1   # original sag_right=2
-        assert r["fr"] == 1    # original fr_right=1 (non-central)
+        assert r["sag"] == 1  # original sag_right=2
+        assert r["fr"] == 1  # original fr_right=1 (non-central)
 
     def test_crop_path_contains_study_and_side(self, records, tmp_path):
         binary = binarize_labels(records, str(tmp_path))

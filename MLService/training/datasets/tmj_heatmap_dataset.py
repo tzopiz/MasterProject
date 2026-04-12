@@ -6,10 +6,12 @@ Each item:
   volume: (1, D, H, W) float32  — normalized downsampled CBCT
   target: (2, D, H, W) float32  — ch0=left heatmap, ch1=right heatmap
 """
+
 from __future__ import annotations
+
 import json
-import random
 import logging
+import random
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -41,7 +43,9 @@ def _load_dicom_volume(study_dir: Path) -> np.ndarray:
     planes = []
     for s in slices:
         arr = s.pixel_array.astype(np.float32)
-        arr = arr * float(getattr(s, "RescaleSlope", 1.0)) + float(getattr(s, "RescaleIntercept", 0.0))
+        arr = arr * float(getattr(s, "RescaleSlope", 1.0)) + float(
+            getattr(s, "RescaleIntercept", 0.0)
+        )
         planes.append(arr)
     return np.stack(planes, axis=0)
 
@@ -66,34 +70,37 @@ def _augment(
     # 1. Intensity jitter
     if random.random() < 0.7:
         alpha = random.uniform(0.9, 1.1)
-        beta  = random.uniform(-0.05, 0.05)
+        beta = random.uniform(-0.05, 0.05)
         volume = np.clip(alpha * volume + beta, 0.0, 1.0)
 
     # 2. Gaussian noise
     if random.random() < 0.4:
-        volume = np.clip(volume + np.random.normal(0, 0.01, volume.shape), 0.0, 1.0).astype(np.float32)
+        volume = np.clip(volume + np.random.normal(0, 0.01, volume.shape), 0.0, 1.0).astype(
+            np.float32
+        )
 
     # 3. X-axis flip → swap left/right + flip x coordinate
     if random.random() < 0.5:
         volume = np.flip(volume, axis=2).copy()
         ds_W = volume.shape[2]
-        left_new  = [right_orig[0], right_orig[1], (ds_W - 1 - right_orig[2] // 6) * 6]
-        right_new = [left_orig[0],  left_orig[1],  (ds_W - 1 - left_orig[2] // 6) * 6]
+        left_new = [right_orig[0], right_orig[1], (ds_W - 1 - right_orig[2] // 6) * 6]
+        right_new = [left_orig[0], left_orig[1], (ds_W - 1 - left_orig[2] // 6) * 6]
         left_orig, right_orig = left_new, right_new
 
     # 4. Rotation ±10°
     if random.random() < 0.5:
         angle = random.uniform(-10, 10)
-        axes  = random.choice([(0, 1), (0, 2), (1, 2)])
+        axes = random.choice([(0, 1), (0, 2), (1, 2)])
         volume = ndimage.rotate(volume, angle, axes=axes, reshape=False, order=1, mode="nearest")
         D, H, W = volume.shape
         centers = [D / 2, H / 2, W / 2]
         a, b = axes
-        c = np.cos(np.radians(angle)); s = np.sin(np.radians(angle))
+        c = np.cos(np.radians(angle))
+        s = np.sin(np.radians(angle))
         dim_sizes = [D * 6, H * 6, W * 6]  # back to original space
         for orig in (left_orig, right_orig):
-            da = (orig[a] / 6 - centers[a])
-            db = (orig[b] / 6 - centers[b])
+            da = orig[a] / 6 - centers[a]
+            db = orig[b] / 6 - centers[b]
             orig[a] = int((da * c - db * s + centers[a]) * 6)
             orig[b] = int((da * s + db * c + centers[b]) * 6)
             orig[a] = min(max(0, orig[a]), dim_sizes[a] - 1)
@@ -135,11 +142,11 @@ class TMJHeatmapDataset(Dataset):
         downsample_factor: int = 6,
         is_train: bool = True,
     ):
-        self.sigma             = sigma
+        self.sigma = sigma
         self.downsample_factor = downsample_factor
-        self.is_train          = is_train
-        self.ann_dir           = Path(annotations_dir)
-        self.dataset_dir       = Path(dataset_dir)
+        self.is_train = is_train
+        self.ann_dir = Path(annotations_dir)
+        self.dataset_dir = Path(dataset_dir)
 
         if volume_loader is not None:
             self._load_volume = volume_loader
@@ -168,15 +175,20 @@ class TMJHeatmapDataset(Dataset):
                 continue
             with open(ann_path) as f:
                 ann = json.load(f)
-            self.records.append({
-                "study_id":     ann["scan_id"],
-                "left_center":  list(ann["left_tmj"]["center"]),
-                "right_center": list(ann["right_tmj"]["center"]),
-                "original_shape": ann["original_shape"],
-            })
+            self.records.append(
+                {
+                    "study_id": ann["scan_id"],
+                    "left_center": list(ann["left_tmj"]["center"]),
+                    "right_center": list(ann["right_tmj"]["center"]),
+                    "original_shape": ann["original_shape"],
+                }
+            )
 
-        logger.info("TMJHeatmapDataset: %d samples (%s)", len(self.records),
-                    "train" if is_train else "val/test")
+        logger.info(
+            "TMJHeatmapDataset: %d samples (%s)",
+            len(self.records),
+            "train" if is_train else "val/test",
+        )
 
     def __len__(self) -> int:
         return len(self.records)
@@ -185,7 +197,7 @@ class TMJHeatmapDataset(Dataset):
         rec = self.records[idx]
         vol = self._load_volume(rec["study_id"])
 
-        left  = list(rec["left_center"])
+        left = list(rec["left_center"])
         right = list(rec["right_center"])
 
         if self.is_train:
@@ -193,11 +205,11 @@ class TMJHeatmapDataset(Dataset):
 
         ds_shape = vol.shape
 
-        hm_left  = make_heatmap(ds_shape, left,  self.sigma, self.downsample_factor)
+        hm_left = make_heatmap(ds_shape, left, self.sigma, self.downsample_factor)
         hm_right = make_heatmap(ds_shape, right, self.sigma, self.downsample_factor)
 
         vol_tensor = torch.from_numpy(vol).float().unsqueeze(0)
-        hm_tensor  = torch.from_numpy(np.stack([hm_left, hm_right])).float()
+        hm_tensor = torch.from_numpy(np.stack([hm_left, hm_right])).float()
         return vol_tensor, hm_tensor
 
 
@@ -215,16 +227,28 @@ def get_heatmap_dataloaders(
         split = json.load(f)
 
     train_ds = TMJHeatmapDataset(
-        split["train"], annotations_dir, dataset_dir=dataset_dir,
-        sigma=sigma, downsample_factor=downsample_factor, is_train=True,
+        split["train"],
+        annotations_dir,
+        dataset_dir=dataset_dir,
+        sigma=sigma,
+        downsample_factor=downsample_factor,
+        is_train=True,
     )
     val_ds = TMJHeatmapDataset(
-        split["val"], annotations_dir, dataset_dir=dataset_dir,
-        sigma=sigma, downsample_factor=downsample_factor, is_train=False,
+        split["val"],
+        annotations_dir,
+        dataset_dir=dataset_dir,
+        sigma=sigma,
+        downsample_factor=downsample_factor,
+        is_train=False,
     )
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
-                              num_workers=num_workers, pin_memory=True)
-    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False,
-                              num_workers=num_workers)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     return train_loader, val_loader

@@ -2,8 +2,9 @@
 Tests for training.losses.focal_loss.BinaryFocalLoss
 """
 
-import sys
 import os
+import sys
+
 import pytest
 import torch
 import torch.nn.functional as F
@@ -63,7 +64,7 @@ class TestBinaryFocalLossOutput:
         """A confidently-correct prediction contributes less with gamma>0."""
         loss_focal = BinaryFocalLoss(gamma=2.0)
         loss_bce = BinaryFocalLoss(gamma=0.0)
-        logits = torch.tensor([5.0])   # highly confident
+        logits = torch.tensor([5.0])  # highly confident
         targets = torch.tensor([1.0])  # correct label
         assert loss_focal(logits, targets).item() < loss_bce(logits, targets).item()
 
@@ -108,7 +109,9 @@ class TestBinaryFocalLossReduction:
         loss_fn_none = BinaryFocalLoss(reduction="none")
         logits = torch.tensor([0.5, -0.5, 1.0, -1.0])
         targets = torch.tensor([1.0, 0.0, 1.0, 0.0])
-        assert torch.isclose(loss_fn_sum(logits, targets), loss_fn_none(logits, targets).sum(), atol=1e-5)
+        assert torch.isclose(
+            loss_fn_sum(logits, targets), loss_fn_none(logits, targets).sum(), atol=1e-5
+        )
 
     def test_invalid_reduction_raises(self):
         with pytest.raises(ValueError, match="reduction"):

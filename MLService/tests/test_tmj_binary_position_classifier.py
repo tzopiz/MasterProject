@@ -2,8 +2,9 @@
 Tests for models.tmj_binary_position_classifier.TMJBinaryPositionClassifier
 """
 
-import sys
 import os
+import sys
+
 import pytest
 import torch
 
@@ -58,6 +59,7 @@ class TestTMJBinaryPositionClassifierForward:
 class TestTMJBinaryPositionClassifierLoss:
     def test_focal_loss_backward_runs(self):
         from training.losses.focal_loss import BinaryFocalLoss
+
         model = TMJBinaryPositionClassifier()
         loss_fn = BinaryFocalLoss(gamma=2.0)
 
@@ -91,6 +93,7 @@ class TestTMJBinaryPositionClassifierParameters:
     def test_fewer_params_than_4head_model(self):
         """Binary model (2 heads, 1 logit each) should have fewer params than 4-head (3 logit) model."""
         from models.tmj_position_classifier import TMJPositionClassifier
+
         binary = TMJBinaryPositionClassifier()
         multiclass = TMJPositionClassifier()
         n_binary = sum(p.numel() for p in binary.parameters())

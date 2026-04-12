@@ -1,0 +1,21 @@
+# Ruff: линт + форматирование для MLService (см. CI job «MLService (ruff)»).
+line-length = 100
+target-version = "py310"
+
+extend-exclude = [
+  "venv",
+  ".venv",
+  "__pycache__",
+  "google_colab",
+  "experiments",
+  "data",
+  "models",
+  "*.zip",
+]
+
+[lint]
+# E/F — базовые ошибки; I — порядок импортов. UP/B подключим позже (много наследованного кода).
+select = ["E4", "E7", "E9", "F", "I"]
+
+[format]
+quote-style = "double"

@@ -14,18 +14,22 @@ Each __getitem__ returns:
     labels_tensor : (4,) int64   — [sag_right, sag_left, fr_right, fr_left], each 0..2
 """
 
-import random
 import logging
+import random
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
-import torch
-from torch.utils.data import DataLoader, Dataset
 import pydicom
+import torch
 from scipy import ndimage
+from torch.utils.data import DataLoader, Dataset
 
-from training.tmj_position_label_table import build_index, binarize_labels, split_by_patient
+from training.tmj_position_label_table import (
+    binarize_labels,
+    build_index,
+    split_by_patient,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +42,7 @@ DEFAULT_SHIFT = 5
 # ------------------------------------------------------------------
 # Shared normalization utility
 # ------------------------------------------------------------------
+
 
 def _normalize_volume_percentile(volume: np.ndarray) -> np.ndarray:
     """Clip to [2nd, 98th] percentile and scale to [0, 1]."""
@@ -222,6 +227,7 @@ class TMJPositionClassificationDataset(Dataset):
 # Factory function
 # ---------------------------------------------------------------------------
 
+
 def get_position_dataloaders(
     manifest_path: str = "data/dataset_cbct_public/manifest_private.json",
     labels_path: str = "data/tmj_position_labels.json",
@@ -307,6 +313,7 @@ class TMJBinaryPositionDataset(Dataset):
 
     def _load_nifti(self, path: str) -> np.ndarray:
         import nibabel as nib
+
         img = nib.load(path)
         arr = np.asarray(img.dataobj, dtype=np.float32)
         return arr  # (D, H, W)
@@ -372,11 +379,16 @@ def get_binary_position_dataloaders(
     val_ds = TMJBinaryPositionDataset(val_records, is_train=False)
 
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True,
-        num_workers=num_workers, pin_memory=True,
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=batch_size, shuffle=False,
+        val_ds,
+        batch_size=batch_size,
+        shuffle=False,
         num_workers=num_workers,
     )
     return train_loader, val_loader

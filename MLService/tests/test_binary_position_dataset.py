@@ -4,11 +4,11 @@ Tests for TMJBinaryPositionDataset and get_binary_position_dataloaders.
 All tests use synthetic NIfTI files — no real DICOM data needed.
 """
 
-import json
-import sys
 import os
-import pytest
+import sys
+
 import numpy as np
+import pytest
 import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _make_nifti(path, shape=(128, 128, 128)):
     """Write a synthetic NIfTI file with random float32 data."""
     import nibabel as nib
+
     arr = np.random.rand(*shape).astype(np.float32)
     nib.save(nib.Nifti1Image(arr, affine=np.eye(4)), str(path))
 
@@ -55,17 +56,20 @@ def binary_records(tmp_path):
 class TestTMJBinaryPositionDataset:
     def test_len(self, binary_records):
         from training.datasets.tmj_position_dataset import TMJBinaryPositionDataset
+
         ds = TMJBinaryPositionDataset(binary_records)
         assert len(ds) == 2
 
     def test_volume_tensor_shape(self, binary_records):
         from training.datasets.tmj_position_dataset import TMJBinaryPositionDataset
+
         ds = TMJBinaryPositionDataset(binary_records)
         volume, labels = ds[0]
         assert volume.shape == (1, 128, 128, 128), f"Got {volume.shape}"
 
     def test_volume_values_in_01(self, binary_records):
         from training.datasets.tmj_position_dataset import TMJBinaryPositionDataset
+
         ds = TMJBinaryPositionDataset(binary_records)
         volume, _ = ds[0]
         assert volume.min().item() >= 0.0
@@ -73,6 +77,7 @@ class TestTMJBinaryPositionDataset:
 
     def test_labels_shape_and_type(self, binary_records):
         from training.datasets.tmj_position_dataset import TMJBinaryPositionDataset
+
         ds = TMJBinaryPositionDataset(binary_records)
         _, labels = ds[0]
         assert labels.shape == (2,), f"Expected (2,), got {labels.shape}"
@@ -80,6 +85,7 @@ class TestTMJBinaryPositionDataset:
 
     def test_labels_values_binary(self, binary_records):
         from training.datasets.tmj_position_dataset import TMJBinaryPositionDataset
+
         ds = TMJBinaryPositionDataset(binary_records)
         _, labels = ds[0]
         assert labels[0].item() in (0, 1), "sag label must be binary"
@@ -87,6 +93,7 @@ class TestTMJBinaryPositionDataset:
 
     def test_correct_labels_returned(self, binary_records):
         from training.datasets.tmj_position_dataset import TMJBinaryPositionDataset
+
         ds = TMJBinaryPositionDataset(binary_records)
         # First record: sag=0, fr=1
         _, labels = ds[0]
@@ -95,6 +102,7 @@ class TestTMJBinaryPositionDataset:
 
     def test_volume_is_float32(self, binary_records):
         from training.datasets.tmj_position_dataset import TMJBinaryPositionDataset
+
         ds = TMJBinaryPositionDataset(binary_records)
         volume, _ = ds[0]
         assert volume.dtype == torch.float32

@@ -1,5 +1,11 @@
 """Tests for models.tmj_heatmap_detector.TMJHeatmapDetector"""
-import sys, os, pytest, torch
+
+import os
+import sys
+
+import pytest
+import torch
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from models.tmj_heatmap_detector import TMJHeatmapDetector
 
@@ -32,10 +38,11 @@ class TestTMJHeatmapDetectorForward:
 
     def test_backward_runs(self):
         from training.losses.heatmap_loss import weighted_mse_loss
+
         model = TMJHeatmapDetector()
-        x      = torch.randn(1, 1, 32, 64, 64)
+        x = torch.randn(1, 1, 32, 64, 64)
         target = torch.rand(1, 2, 32, 64, 64)
-        out  = model(x)
+        out = model(x)
         loss = weighted_mse_loss(out, target)
         loss.backward()
         for name, p in model.named_parameters():

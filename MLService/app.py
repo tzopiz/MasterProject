@@ -1,21 +1,20 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List, Dict
 import logging
-from datetime import datetime
 import os
 import shutil
 import tempfile
-import uuid
+from datetime import datetime
+from typing import List, Optional
 
-from services.dicom_processor import DICOMProcessor
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
 from services.detector_service import TMJDetectorService
+from services.dicom_processor import DICOMProcessor
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -40,11 +39,11 @@ async def startup_event():
     """Initialize ML model on startup"""
     global detector_service
     logger.info("Starting ML Service...")
-    
+
     # Try to load best detector model
     # Search in experiments/ for best_model.pth if not specified
     model_path = os.getenv("MODEL_PATH")
-    
+
     if not model_path:
         # Try to find latest detector experiment
         try:
@@ -58,25 +57,30 @@ async def startup_event():
                         model_path = candidate
         except Exception as e:
             logger.warning(f"Error searching for model: {e}")
-    
+
     # Fallback
     if not model_path:
         model_path = "models/tmj_detector_best.pth"
-    
-    detector_service = TMJDetectorService(model_path if model_path and os.path.exists(model_path) else None)
-    
+
+    detector_service = TMJDetectorService(
+        model_path if model_path and os.path.exists(model_path) else None
+    )
+
     logger.info("ML Service started successfully")
 
 
 # Response Models
 
+
 class BoundingBox(BaseModel):
-    center: List[float] # [z, y, x]
-    bbox: List[int]     # [z1, y1, x1, z2, y2, x2]
+    center: List[float]  # [z, y, x]
+    bbox: List[int]  # [z1, y1, x1, z2, y2, x2]
+
 
 class TMJResult(BaseModel):
     left: BoundingBox
     right: BoundingBox
+
 
 class ProcessResponse(BaseModel):
     task_id: str
@@ -85,11 +89,13 @@ class ProcessResponse(BaseModel):
     volume_shape: Optional[List[int]] = None  # [depth, height, width]
     error_message: Optional[str] = None
 
+
 class HealthResponse(BaseModel):
     status: str
     service: str
     timestamp: datetime
     model_loaded: bool
+
 
 class ModelStatusResponse(BaseModel):
     model_loaded: bool
@@ -104,7 +110,7 @@ async def health_check():
         status="ok",
         service="ml-service",
         timestamp=datetime.now(),
-        model_loaded=detector_service is not None and detector_service.is_loaded()
+        model_loaded=detector_service is not None and detector_service.is_loaded(),
     )
 
 
@@ -114,18 +120,15 @@ async def model_status():
     if detector_service and detector_service.is_loaded():
         return ModelStatusResponse(
             model_loaded=True,
-            model_path=detector_service.model.model_path if hasattr(detector_service.model, 'model_path') else "loaded"
+            model_path=detector_service.model.model_path
+            if hasattr(detector_service.model, "model_path")
+            else "loaded",
         )
-    return ModelStatusResponse(
-        model_loaded=False
-    )
+    return ModelStatusResponse(model_loaded=False)
 
 
 @app.post("/process", response_model=ProcessResponse)
-async def process_dicom(
-    task_id: str = Form(...),
-    files: List[UploadFile] = File(...)
-):
+async def process_dicom(task_id: str = Form(...), files: List[UploadFile] = File(...)):
     """
     Process DICOM Series (3D):
     1. Save uploaded files to temp directory
@@ -134,78 +137,70 @@ async def process_dicom(
     4. Return Bounding Box
     """
     logger.info(f"Processing task: {task_id}, files: {len(files)}")
-    
+
     temp_dir = None
     try:
         # 1. Save files
         temp_dir = tempfile.mkdtemp(prefix=f"task_{task_id}_")
         logger.info(f"Saving {len(files)} files to {temp_dir}")
-        
+
         for file in files:
             file_path = os.path.join(temp_dir, file.filename)
             with open(file_path, "wb") as f:
                 content = await file.read()
                 f.write(content)
-        
+
         # 2. Load Series
         logger.info("Loading 3D volume...")
         dicom_data = dicom_processor.load_series(temp_dir)
-        
+
         if dicom_data is None:
-             raise HTTPException(status_code=400, detail="Failed to load DICOM series from uploaded files")
-             
-        volume = dicom_data["pixel_array"] # 3D numpy array
-        
+            raise HTTPException(
+                status_code=400, detail="Failed to load DICOM series from uploaded files"
+            )
+
+        volume = dicom_data["pixel_array"]  # 3D numpy array
+
         # 3. Run Detector
         logger.info("Running TMJ Detector...")
         detection_result = None
-        
+
         if detector_service and detector_service.is_loaded():
             detection_result = detector_service.detect(volume)
         else:
             logger.warning("Detector not loaded, cannot process")
             return ProcessResponse(
-                task_id=task_id, 
-                status="failed", 
-                error_message="Model not loaded"
+                task_id=task_id, status="failed", error_message="Model not loaded"
             )
-            
+
         if detection_result is None:
-             return ProcessResponse(
-                task_id=task_id, 
-                status="failed", 
-                error_message="Detection failed"
+            return ProcessResponse(
+                task_id=task_id, status="failed", error_message="Detection failed"
             )
 
         # 4. Return Result
         tmj_result = TMJResult(
             left=BoundingBox(
-                center=detection_result["left"]["center"],
-                bbox=detection_result["left"]["bbox"]
+                center=detection_result["left"]["center"], bbox=detection_result["left"]["bbox"]
             ),
             right=BoundingBox(
-                center=detection_result["right"]["center"],
-                bbox=detection_result["right"]["bbox"]
-            )
+                center=detection_result["right"]["center"], bbox=detection_result["right"]["bbox"]
+            ),
         )
-        
+
         logger.info(f"Task {task_id} completed successfully")
-        
+
         return ProcessResponse(
             task_id=task_id,
             status="completed",
             tmj=tmj_result,
-            volume_shape=list(volume.shape)  # [D, H, W]
+            volume_shape=list(volume.shape),  # [D, H, W]
         )
 
     except Exception as e:
         logger.error(f"Error processing task {task_id}: {str(e)}", exc_info=True)
-        return ProcessResponse(
-            task_id=task_id,
-            status="failed",
-            error_message=str(e)
-        )
-        
+        return ProcessResponse(task_id=task_id, status="failed", error_message=str(e))
+
     finally:
         # Cleanup temp dir
         if temp_dir and os.path.exists(temp_dir):
@@ -215,4 +210,5 @@ async def process_dicom(
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8001)
