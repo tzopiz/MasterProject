@@ -482,6 +482,170 @@ def _print_cv_table(result: Dict[str, Any]) -> None:
     print(f"best fold AUC: {result['best_fold_auc']:.4f}  worst: {result['worst_fold_auc']:.4f}")
 
 
+def analyze_sagittal_cv_result(
+    result: Optional[Dict[str, Any]] = None,
+    *,
+    json_path: Optional[str | Path] = None,
+    show_plots: bool = True,
+) -> Dict[str, Any]:
+    """
+    Pretty-print and return structured views of :func:`run_sagittal_binary_cv` output.
+
+    Pass either ``result`` (in-memory dict) or ``json_path`` (same schema as written
+    to ``output_json``). Optional ``matplotlib`` figures: val AUC and train loss
+    vs epoch per fold.
+
+    Returns a dict with ``fold_summaries`` (list of per-fold dicts), ``epoch_rows``
+    (flat list of epoch dicts with ``fold``), ``summary``, ``config``, and
+    ``pandas`` DataFrames if pandas is installed (``epochs_df``, ``folds_df``).
+    """
+    if result is None:
+        if json_path is None:
+            raise ValueError("Pass result=... or json_path=...")
+        raw = Path(json_path).expanduser().read_text(encoding="utf-8")
+        result = json.loads(raw)
+
+    out: Dict[str, Any] = {
+        "raw_keys": list(result.keys()),
+        "config": result.get("config"),
+        "summary": result.get("summary"),
+        "status": result.get("status"),
+        "completed_folds": result.get("completed_folds"),
+        "n_splits": result.get("n_splits"),
+        "best_fold_auc": result.get("best_fold_auc"),
+        "worst_fold_auc": result.get("worst_fold_auc"),
+        "fold_summaries": [],
+        "epoch_rows": [],
+    }
+
+    cfg = result.get("config") or {}
+    print("\n=== Sagittal CV — config (main fields) ===")
+    for k in (
+        "crop_dir",
+        "manifest_path",
+        "labels_path",
+        "dataset_root",
+        "n_splits",
+        "seed",
+        "epochs",
+        "batch_size",
+        "lr",
+        "weight_decay",
+        "early_stopping_patience",
+        "gamma",
+        "features",
+        "fc_hidden",
+        "dropout",
+        "train_augment_mode",
+        "num_workers",
+        "output_json",
+    ):
+        if k in cfg:
+            print(f"  {k}: {cfg[k]}")
+
+    if result.get("status"):
+        print(
+            f"\nstatus={result['status']}  completed_folds="
+            f"{result.get('completed_folds', '?')}/{result.get('n_splits', '?')}"
+        )
+
+    s = result.get("summary") or {}
+    print("\n=== Cross-fold summary (val, threshold from train Youden) ===")
+    for key in sorted(s.keys()):
+        v = s[key]
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            v = None
+        print(f"  {key}: {v}")
+
+    print(f"\n  best_fold_auc: {result.get('best_fold_auc')}  worst_fold_auc: {result.get('worst_fold_auc')}")
+
+    folds = result.get("folds") or []
+    epoch_rows: List[Dict[str, Any]] = []
+
+    print("\n=== Per-fold (final val metrics @ train-Youden threshold) ===")
+    for i, f in enumerate(folds):
+        fi = f.get("fold", i)
+        cm = f.get("val_confusion_matrix_at_threshold")
+        summ = {
+            "fold": fi,
+            "n_train_samples": f.get("n_train_samples"),
+            "n_val_samples": f.get("n_val_samples"),
+            "best_epoch": f.get("best_epoch"),
+            "val_auc": f.get("val_auc"),
+            "threshold_from_train_youden": f.get("threshold_from_train_youden"),
+            "val_balanced_accuracy": f.get("val_balanced_accuracy"),
+            "val_f1_minority": f.get("val_f1_minority"),
+            "val_accuracy_at_threshold": f.get("val_accuracy_at_threshold"),
+            "n_epochs_logged": len(f.get("epoch_history") or []),
+        }
+        out["fold_summaries"].append(summ)
+        print(f"\n--- fold {fi} ---")
+        for k, v in summ.items():
+            if k == "fold":
+                continue
+            print(f"  {k}: {v}")
+        print(f"  val_confusion_matrix_at_threshold [[TN, FP],[FN, TP]]: {cm}")
+
+        for row in f.get("epoch_history") or []:
+            er = dict(row)
+            er["fold"] = fi
+            epoch_rows.append(er)
+
+    out["epoch_rows"] = epoch_rows
+    print(f"\n=== Epoch history === total rows: {len(epoch_rows)} (all folds)")
+
+    try:
+        import pandas as pd
+
+        out["folds_df"] = pd.DataFrame(out["fold_summaries"])
+        out["epochs_df"] = pd.DataFrame(epoch_rows)
+        print("\nfolds_df:")
+        print(out["folds_df"].to_string(index=False))
+        print("\nepochs_df (head):")
+        print(out["epochs_df"].head(12).to_string(index=False))
+        if len(epoch_rows) > 12:
+            print("  ...")
+    except ImportError:
+        out["folds_df"] = None
+        out["epochs_df"] = None
+        print("(install pandas for DataFrame tables)")
+
+    if show_plots and epoch_rows:
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            print("(install matplotlib for plots)")
+            return out
+
+        fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=False)
+        for f in folds:
+            fi = f.get("fold", 0)
+            h = f.get("epoch_history") or []
+            if not h:
+                continue
+            xs = [r["epoch"] for r in h]
+            val_aucs = [r["val_auc"] for r in h]
+            losses = [r["train_loss"] for r in h]
+            axes[0].plot(xs, val_aucs, marker="o", ms=2, lw=1, label=f"fold {fi}")
+            axes[1].plot(xs, losses, marker="o", ms=2, lw=1, label=f"fold {fi}")
+
+        axes[0].set_ylabel("val ROC-AUC")
+        axes[0].set_title("Validation ROC-AUC per epoch")
+        axes[0].grid(True, alpha=0.3)
+        axes[0].legend(loc="lower right", fontsize=8)
+
+        axes[1].set_xlabel("epoch")
+        axes[1].set_ylabel("train loss (mean batch)")
+        axes[1].set_title("Train loss @ epoch")
+        axes[1].grid(True, alpha=0.3)
+        axes[1].legend(loc="upper right", fontsize=8)
+
+        plt.tight_layout()
+        plt.show()
+
+    return out
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="Sagittal binary position — StratifiedGroupKFold CV")
