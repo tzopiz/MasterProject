@@ -487,6 +487,10 @@ def analyze_sagittal_cv_result(
     *,
     json_path: Optional[str | Path] = None,
     show_plots: bool = True,
+    report_path: Optional[str | Path] = None,
+    export_json: bool = True,
+    export_csv: bool = True,
+    save_curves: bool = True,
 ) -> Dict[str, Any]:
     """
     Pretty-print and return structured views of :func:`run_sagittal_binary_cv` output.
@@ -495,15 +499,30 @@ def analyze_sagittal_cv_result(
     to ``output_json``). Optional ``matplotlib`` figures: val AUC and train loss
     vs epoch per fold.
 
-    Returns a dict with ``fold_summaries`` (list of per-fold dicts), ``epoch_rows``
-    (flat list of epoch dicts with ``fold``), ``summary``, ``config``, and
-    ``pandas`` DataFrames if pandas is installed (``epochs_df``, ``folds_df``).
+    If ``report_path`` is set, writes next to that path's parent:
+
+    * ``<stem>.txt`` (or the path you pass if it already ends in ``.txt``) — full text report
+    * ``<stem>_export.json`` — ``config``, ``summary``, ``fold_summaries``, ``epoch_rows``
+    * ``<stem>_folds.csv`` / ``<stem>_epochs.csv`` when pandas is available and ``export_csv``
+    * ``<stem>_curves.png`` when matplotlib is available, ``epoch_rows`` non-empty, and ``save_curves``
+
+    Returns a dict with ``fold_summaries``, ``epoch_rows``, ``summary``, ``config``,
+    optional ``epochs_df`` / ``folds_df``, and ``report_files_written`` (paths created).
     """
     if result is None:
         if json_path is None:
             raise ValueError("Pass result=... or json_path=...")
         raw = Path(json_path).expanduser().read_text(encoding="utf-8")
         result = json.loads(raw)
+
+    lines: List[str] = []
+    written: List[str] = []
+
+    def ln(*parts: Any) -> None:
+        if parts:
+            lines.append(" ".join(str(p) for p in parts))
+        else:
+            lines.append("")
 
     out: Dict[str, Any] = {
         "raw_keys": list(result.keys()),
@@ -516,10 +535,12 @@ def analyze_sagittal_cv_result(
         "worst_fold_auc": result.get("worst_fold_auc"),
         "fold_summaries": [],
         "epoch_rows": [],
+        "report_files_written": written,
     }
 
     cfg = result.get("config") or {}
-    print("\n=== Sagittal CV — config (main fields) ===")
+    ln()
+    ln("=== Sagittal CV — config (main fields) ===")
     for k in (
         "crop_dir",
         "manifest_path",
@@ -541,28 +562,36 @@ def analyze_sagittal_cv_result(
         "output_json",
     ):
         if k in cfg:
-            print(f"  {k}: {cfg[k]}")
+            ln(f"  {k}: {cfg[k]}")
 
     if result.get("status"):
-        print(
-            f"\nstatus={result['status']}  completed_folds="
-            f"{result.get('completed_folds', '?')}/{result.get('n_splits', '?')}"
+        ln()
+        ln(
+            "status=",
+            result["status"],
+            "  completed_folds=",
+            result.get("completed_folds", "?"),
+            "/",
+            result.get("n_splits", "?"),
         )
 
     s = result.get("summary") or {}
-    print("\n=== Cross-fold summary (val, threshold from train Youden) ===")
+    ln()
+    ln("=== Cross-fold summary (val, threshold from train Youden) ===")
     for key in sorted(s.keys()):
         v = s[key]
         if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
             v = None
-        print(f"  {key}: {v}")
+        ln(f"  {key}: {v}")
 
-    print(f"\n  best_fold_auc: {result.get('best_fold_auc')}  worst_fold_auc: {result.get('worst_fold_auc')}")
+    ln()
+    ln("  best_fold_auc:", result.get("best_fold_auc"), "  worst_fold_auc:", result.get("worst_fold_auc"))
 
     folds = result.get("folds") or []
     epoch_rows: List[Dict[str, Any]] = []
 
-    print("\n=== Per-fold (final val metrics @ train-Youden threshold) ===")
+    ln()
+    ln("=== Per-fold (final val metrics @ train-Youden threshold) ===")
     for i, f in enumerate(folds):
         fi = f.get("fold", i)
         cm = f.get("val_confusion_matrix_at_threshold")
@@ -579,12 +608,13 @@ def analyze_sagittal_cv_result(
             "n_epochs_logged": len(f.get("epoch_history") or []),
         }
         out["fold_summaries"].append(summ)
-        print(f"\n--- fold {fi} ---")
+        ln()
+        ln(f"--- fold {fi} ---")
         for k, v in summ.items():
             if k == "fold":
                 continue
-            print(f"  {k}: {v}")
-        print(f"  val_confusion_matrix_at_threshold [[TN, FP],[FN, TP]]: {cm}")
+            ln(f"  {k}: {v}")
+        ln(f"  val_confusion_matrix_at_threshold [[TN, FP],[FN, TP]]: {cm}")
 
         for row in f.get("epoch_history") or []:
             er = dict(row)
@@ -592,56 +622,113 @@ def analyze_sagittal_cv_result(
             epoch_rows.append(er)
 
     out["epoch_rows"] = epoch_rows
-    print(f"\n=== Epoch history === total rows: {len(epoch_rows)} (all folds)")
+    ln()
+    ln("=== Epoch history === total rows:", len(epoch_rows), "(all folds)")
 
     try:
         import pandas as pd
 
         out["folds_df"] = pd.DataFrame(out["fold_summaries"])
         out["epochs_df"] = pd.DataFrame(epoch_rows)
-        print("\nfolds_df:")
-        print(out["folds_df"].to_string(index=False))
-        print("\nepochs_df (head):")
-        print(out["epochs_df"].head(12).to_string(index=False))
+        ln()
+        ln("folds_df:")
+        ln(out["folds_df"].to_string(index=False))
+        ln()
+        ln("epochs_df (head):")
+        ln(out["epochs_df"].head(12).to_string(index=False))
         if len(epoch_rows) > 12:
-            print("  ...")
+            ln("  ...")
     except ImportError:
         out["folds_df"] = None
         out["epochs_df"] = None
-        print("(install pandas for DataFrame tables)")
+        ln()
+        ln("(install pandas for DataFrame tables)")
 
-    if show_plots and epoch_rows:
+    report_text = "\n".join(lines)
+    print(report_text)
+
+    if report_path is not None:
+        rp = Path(report_path).expanduser()
+        if rp.suffix == "":
+            rp = rp.with_suffix(".txt")
+        rp.parent.mkdir(parents=True, exist_ok=True)
+        rp.write_text(report_text + "\n", encoding="utf-8")
+        written.append(str(rp.resolve()))
+
+        stem = rp.stem
+
+        if export_json:
+            export_payload = {
+                "config": result.get("config"),
+                "summary": result.get("summary"),
+                "status": result.get("status"),
+                "completed_folds": result.get("completed_folds"),
+                "n_splits": result.get("n_splits"),
+                "best_fold_auc": result.get("best_fold_auc"),
+                "worst_fold_auc": result.get("worst_fold_auc"),
+                "fold_summaries": out["fold_summaries"],
+                "epoch_rows": out["epoch_rows"],
+            }
+            jp = rp.parent / f"{stem}_export.json"
+            with open(jp, "w", encoding="utf-8") as jf:
+                json.dump(_json_sanitize(export_payload), jf, indent=2)
+            written.append(str(jp.resolve()))
+
+        if export_csv and out.get("folds_df") is not None and out.get("epochs_df") is not None:
+            folds_csv = rp.parent / f"{stem}_folds.csv"
+            epochs_csv = rp.parent / f"{stem}_epochs.csv"
+            out["folds_df"].to_csv(folds_csv, index=False)
+            out["epochs_df"].to_csv(epochs_csv, index=False)
+            written.append(str(folds_csv.resolve()))
+            written.append(str(epochs_csv.resolve()))
+
+    if epoch_rows:
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            print("(install matplotlib for plots)")
-            return out
+            print("(install matplotlib for curve plots / PNG export)")
+        else:
+            fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=False)
+            for f in folds:
+                fi = f.get("fold", 0)
+                h = f.get("epoch_history") or []
+                if not h:
+                    continue
+                xs = [r["epoch"] for r in h]
+                val_aucs = [r["val_auc"] for r in h]
+                losses = [r["train_loss"] for r in h]
+                axes[0].plot(xs, val_aucs, marker="o", ms=2, lw=1, label=f"fold {fi}")
+                axes[1].plot(xs, losses, marker="o", ms=2, lw=1, label=f"fold {fi}")
 
-        fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=False)
-        for f in folds:
-            fi = f.get("fold", 0)
-            h = f.get("epoch_history") or []
-            if not h:
-                continue
-            xs = [r["epoch"] for r in h]
-            val_aucs = [r["val_auc"] for r in h]
-            losses = [r["train_loss"] for r in h]
-            axes[0].plot(xs, val_aucs, marker="o", ms=2, lw=1, label=f"fold {fi}")
-            axes[1].plot(xs, losses, marker="o", ms=2, lw=1, label=f"fold {fi}")
+            axes[0].set_ylabel("val ROC-AUC")
+            axes[0].set_title("Validation ROC-AUC per epoch")
+            axes[0].grid(True, alpha=0.3)
+            axes[0].legend(loc="lower right", fontsize=8)
 
-        axes[0].set_ylabel("val ROC-AUC")
-        axes[0].set_title("Validation ROC-AUC per epoch")
-        axes[0].grid(True, alpha=0.3)
-        axes[0].legend(loc="lower right", fontsize=8)
+            axes[1].set_xlabel("epoch")
+            axes[1].set_ylabel("train loss (mean batch)")
+            axes[1].set_title("Train loss @ epoch")
+            axes[1].grid(True, alpha=0.3)
+            axes[1].legend(loc="upper right", fontsize=8)
 
-        axes[1].set_xlabel("epoch")
-        axes[1].set_ylabel("train loss (mean batch)")
-        axes[1].set_title("Train loss @ epoch")
-        axes[1].grid(True, alpha=0.3)
-        axes[1].legend(loc="upper right", fontsize=8)
+            plt.tight_layout()
 
-        plt.tight_layout()
-        plt.show()
+            if report_path is not None and save_curves:
+                rpp = Path(report_path).expanduser()
+                if rpp.suffix == "":
+                    rpp = rpp.with_suffix(".txt")
+                curves_path = rpp.parent / f"{rpp.stem}_curves.png"
+                fig.savefig(curves_path, dpi=150, bbox_inches="tight")
+                written.append(str(curves_path.resolve()))
+
+            if show_plots:
+                plt.show()
+            plt.close(fig)
+
+    if written:
+        print("\n--- report files ---")
+        for w in written:
+            print(" ", w)
 
     return out
 
