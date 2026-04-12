@@ -50,6 +50,7 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 - **Loss:** `training/losses/focal_loss.py` — `BinaryFocalLoss(γ=2, α=auto)`
 - **Подход A:** NIfTI-кропы от детектора (128³) вместо центрального кропа DICOM
 - **Подход B:** `BinaryFocalLoss` + калибровка порога по Youden's J на val ROC
+- **Артефакты ноутбука:** `experiments/sag_only_<timestamp>/` (веса, `metrics.jsonl`, `training_analysis.json`, графики); в §9 — ZIP `*_bundle.zip` для скачивания. Примеры полных копий: [`experiments/sag_only_20260411_191537/README.md`](experiments/sag_only_20260411_191537/README.md) (последний зафиксированный прогон), [`experiments/sag_only_20260411_182037/README.md`](experiments/sag_only_20260411_182037/README.md); индекс — [`experiments/README.md`](experiments/README.md).
 
 ```bash
 # Шаг 1: сгенерировать кропы

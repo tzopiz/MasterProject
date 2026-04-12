@@ -1,0 +1,11 @@
+# Локально: pip install pre-commit && pre-commit install
+# Хуки срабатывают только для путей под MLService/ из списка ниже.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        files: ^MLService/(tests/|services/|app\.py|training/(losses|datasets)/)
+      - id: ruff-format
+        files: ^MLService/(tests/|services/|app\.py|training/(losses|datasets)/)
+

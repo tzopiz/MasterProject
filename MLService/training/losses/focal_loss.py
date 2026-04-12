@@ -59,7 +59,7 @@ class BinaryFocalLoss(nn.Module):
         if logits.dim() == 2 and logits.shape[1] == 1:
             logits = logits.squeeze(1)  # (B, 1) → (B,)
 
-        targets = targets.float()
+        targets = targets.float().to(logits.device)
 
         # Standard per-sample BCE (numerically stable)
         bce = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")

@@ -5,25 +5,25 @@ Tests are self-contained (no disk I/O) — all data is synthetic.
 """
 
 import json
-import sys
 import os
-import tempfile
+import sys
+
 import pytest
 
 # Make sure the MLService root is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from training.tmj_position_label_table import (
-    map_sagittal,
-    map_frontal,
     build_index,
+    map_frontal,
+    map_sagittal,
     split_by_patient,
 )
-
 
 # ---------------------------------------------------------------------------
 # Code mapping
 # ---------------------------------------------------------------------------
+
 
 class TestMapSagittal:
     def test_code_1_maps_to_0(self):
@@ -128,48 +128,56 @@ def synthetic_files(tmp_path):
 
 class TestBuildIndex:
     def test_matched_records_count(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
         # study_0001, study_0002, study_0003 match; study_0004 is skipped
         assert len(records) == 3
 
     def test_skipped_patient_not_in_records(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
         study_ids = [r["study_id"] for r in records]
         assert "study_0004" not in study_ids
 
     def test_label_mapping_ivanov(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
         ivanov = [r for r in records if r["study_id"] == "study_0001"][0]
-        assert ivanov["sag_right"] == 0   # code 1 → 0
-        assert ivanov["sag_left"]  == 1   # code 2 → 1
-        assert ivanov["fr_right"]  == 0   # code 4 → 0
-        assert ivanov["fr_left"]   == 2   # code 6 → 2
+        assert ivanov["sag_right"] == 0  # code 1 → 0
+        assert ivanov["sag_left"] == 1  # code 2 → 1
+        assert ivanov["fr_right"] == 0  # code 4 → 0
+        assert ivanov["fr_left"] == 2  # code 6 → 2
 
     def test_label_mapping_petrova(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
         petrova = [r for r in records if r["study_id"] == "study_0003"][0]
         assert petrova["sag_right"] == 2  # code 3 → 2
-        assert petrova["sag_left"]  == 0  # code 1 → 0
-        assert petrova["fr_right"]  == 1  # code 5 → 1
-        assert petrova["fr_left"]   == 0  # code 4 → 0
+        assert petrova["sag_left"] == 0  # code 1 → 0
+        assert petrova["fr_right"] == 1  # code 5 → 1
+        assert petrova["fr_left"] == 0  # code 4 → 0
 
     def test_record_has_required_keys(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
-        required = {"study_id", "dicom_dir", "patient_name",
-                    "sag_right", "sag_left", "fr_right", "fr_left"}
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
+        required = {
+            "study_id",
+            "dicom_dir",
+            "patient_name",
+            "sag_right",
+            "sag_left",
+            "fr_right",
+            "fr_left",
+        }
         for rec in records:
             assert required <= set(rec.keys()), f"Missing keys in {rec}"
 
     def test_cache_file_written(self, synthetic_files, tmp_path):
-        m, l, root = synthetic_files
+        manifest_path, labels_path, dataset_root = synthetic_files
         cache = str(tmp_path / "cache.json")
-        records = build_index(m, l, root, cache_path=cache)
+        records = build_index(manifest_path, labels_path, dataset_root, cache_path=cache)
         import os
+
         assert os.path.exists(cache)
         with open(cache, encoding="utf-8") as f:
             cached = json.load(f)
@@ -180,10 +188,11 @@ class TestBuildIndex:
 # split_by_patient
 # ---------------------------------------------------------------------------
 
+
 class TestSplitByPatient:
     def test_no_patient_leakage(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
         train, val = split_by_patient(records, split_ratio=0.5, seed=0)
 
         train_patients = {r["patient_name"] for r in train}
@@ -192,14 +201,14 @@ class TestSplitByPatient:
         assert train_patients.isdisjoint(val_patients)
 
     def test_all_records_covered(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
         train, val = split_by_patient(records, split_ratio=0.5)
         assert len(train) + len(val) == len(records)
 
     def test_same_seed_reproducible(self, synthetic_files):
-        m, l, root = synthetic_files
-        records = build_index(m, l, root)
+        manifest_path, labels_path, dataset_root = synthetic_files
+        records = build_index(manifest_path, labels_path, dataset_root)
         t1, v1 = split_by_patient(records, seed=99)
         t2, v2 = split_by_patient(records, seed=99)
         assert [r["study_id"] for r in t1] == [r["study_id"] for r in t2]

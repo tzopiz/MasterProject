@@ -1,16 +1,23 @@
 """Tests for training.utils.heatmap"""
-import sys, os
-import pytest
+
+import os
+import sys
+
 import numpy as np
 import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from training.utils.heatmap import make_heatmap, soft_argmax_3d, coords_from_heatmap
+from training.utils.heatmap import coords_from_heatmap, make_heatmap, soft_argmax_3d
 
 
 class TestMakeHeatmap:
     def test_output_shape(self):
-        hm = make_heatmap(shape=(96, 128, 128), center_zyx=(288, 240, 180), sigma=3.0, downsample_factor=6)
+        hm = make_heatmap(
+            shape=(96, 128, 128),
+            center_zyx=(288, 240, 180),
+            sigma=3.0,
+            downsample_factor=6,
+        )
         assert hm.shape == (96, 128, 128)
 
     def test_output_dtype(self):
@@ -35,7 +42,7 @@ class TestMakeHeatmap:
 
     def test_sigma_controls_spread(self):
         hm_narrow = make_heatmap((96, 128, 128), (288, 240, 180), sigma=1.0, downsample_factor=6)
-        hm_wide   = make_heatmap((96, 128, 128), (288, 240, 180), sigma=5.0, downsample_factor=6)
+        hm_wide = make_heatmap((96, 128, 128), (288, 240, 180), sigma=5.0, downsample_factor=6)
         assert hm_narrow.sum() < hm_wide.sum()
 
 

@@ -14,6 +14,8 @@
 | **v5** | `train_position_classifier_2d.ipynb`, секция 4b | Бинарные метки + multi-slice фичи + 5-fold CV по пациентам + PCA+SVM grid + ансамбль; отчёт в `training_analysis_v5.json` |
 | **v6a (A+B, 2 головы)** | `train_binary_position_classifier.ipynb` | Детектор-кропы NIfTI 128³ + `BinaryFocalLoss(γ=2)`. Две головы (sag + fr). Эксп: `binary_position_20260410_234628`. Val acc=0.800 на эпохе 2, но случайный сплит — val фронтали был 95% non-central, результат нестабилен. |
 | **v6b (sag-only)** | `train_binary_position_classifier.ipynb` | Только сагитталь. Стратифицированный сплит по классам. Mixed precision (V100). Эксп: `sag_only_20260411_003640`. Best epoch=8, AUC=0.705, sensitivity=0.50 (thresh=0.5) / 0.875 (Youden thresh=0.457). |
+| **v6b-run2 (архив в репо)** | тот же ноутбук | Локальная копия bundle: `MLService/experiments/sag_only_20260411_182037/`. Тот же сплит 142/30. Best epoch=6, val acc=0.733, AUC на val при калибровке **0.472**, Youden thresh≈0.506, early stop на эпохе 46. Сильный разброс AUC относительно `003640` — напоминание зафиксировать **seed** и/или перейти на **K-fold**. |
+| **v6b-run3 (архив в репо)** | тот же ноутбук (AdamW, warmup+cosine, grad accum, early stop по val AUC) | `MLService/experiments/sag_only_20260411_191537/` из `sag_only_20260411_191537.zip`. Сплит 142/30. Best epoch=**11**, val AUC≈**0.699**, val acc@0.5=**0.767**, Youden thresh≈**0.474**, early stop эп. **36**. Порог 0.5 по-прежнему «ломает» recall класса 1 — в проде использовать калиброванный порог из `config.json`. |
 
 ---
 
@@ -90,6 +92,44 @@
 
 ---
 
+## v6b-run2 — `sag_only_20260411_182037` (локально в репозитории)
+
+**Источник:** скачанный `sag_only_20260411_182037_bundle.zip` → `MLService/experiments/sag_only_20260411_182037/`. Подробный индекс файлов: [experiments/sag_only_20260411_182037/README.md](../experiments/sag_only_20260411_182037/README.md).
+
+**Задача и данные:** как у v6b (sagittal-only, detector crops 128³, `BinaryFocalLoss`, тот же счётчик train/val по `config.json`).
+
+| Метрика | Значение |
+|---------|----------|
+| Best epoch | 6 |
+| Best val accuracy | 0.733 |
+| Эпох (early stopping) | 46 |
+| AUC-ROC (калибровка на val) | 0.472 |
+| Youden J threshold | 0.506 |
+| Accuracy @ threshold | 0.767 |
+
+**Интерпретация:** число AUC **ниже**, чем в прогоне `sag_only_20260411_003640` (0.705), при формально том же разбиении 142/30 — типично для малого val и **разной инициализации** без фиксированного `torch.manual_seed` на весь пайплайн. Для разработки: не сравнивать одиночные прогоны без сидов; добавить seed + несколько повторов или CV.
+
+---
+
+## v6b-run3 — `sag_only_20260411_191537` (локально в репозитории)
+
+**Источник:** `sag_only_20260411_191537.zip` → `MLService/experiments/sag_only_20260411_191537/`. Подробнее: [experiments/sag_only_20260411_191537/README.md](../experiments/sag_only_20260411_191537/README.md).
+
+**Задача и данные:** как у v6b-run2 (sagittal-only, 142 train / 30 val, 22/8 по sag на val).
+
+| Метрика | Значение |
+|---------|----------|
+| Best epoch (по val AUC) | **11** |
+| Val AUC (лучшая эпоха / калибровка) | **~0.699** |
+| Best val accuracy @0.5 | **0.767** |
+| Эпох (early stopping по val AUC) | **36** |
+| Youden J threshold | **~0.474** |
+| Accuracy @ Youden threshold | **0.767** |
+
+**Интерпретация:** после стабилизации обучения в ноутбуке AUC на val **сопоставим** с прогоном `003640` (~0.705), в отличие от run2 (0.47) — подтверждает влияание **инициализации, расписания LR и критерия чекпоинта**, а не только «случайного шума сплита». Ранние эпохи показывают коллапс по порогу 0.5 (все 1 / все 0); итоговая калибровка порога обязательна.
+
+---
+
 ## Аналитика по присланным JSON (интерпретация)
 
 ### v1 / v3 (3 класса, малый val)
@@ -135,7 +175,7 @@
 
 ## Что имеет смысл «добить» дальше
 
-1. **v6c:** меньший backbone `[8,16,32,64]` + 5-fold CV по пациентам — получить надёжную оценку AUC без шума малого val.
+1. **v6c (план):** меньший backbone `[8,16,32,64]` + 5-fold CV по пациентам — получить надёжную оценку AUC без шума малого val; явный **`manual_seed`** в ноутбуке для воспроизводимости между прогонами (`003640`, `182037`, `191537`).
 2. **Фронталь:** повторить v6b-подход для фронтали со стратифицированным сплитом (в v6a val был нерепрезентативным).
 3. **Данные:** фундаментальное узкое место — при n<50 пациентов метрики шумные. Расширение датасета даст наибольший прирост.
 4. **Сравнимость версий:** явно фиксировать протокол (3-class vs binary, random split vs stratified vs CV) — числа из разных версий несопоставимы напрямую.
@@ -144,8 +184,9 @@
 
 ## Файлы
 
-- Ноутбуки: `train_position_classifier.ipynb`, `train_position_classifier_2d.ipynb`.
+- Ноутбуки: `train_position_classifier.ipynb`, `train_position_classifier_2d.ipynb`, `train_binary_position_classifier.ipynb`.
 - Экспорт метрик из 2D: ячейка сохраняет `training_analysis_v5.json` (и скачивание в Colab через `save_output`).
+- Бинарный 3D-ноутбук: папка прогона `MLService/experiments/sag_only_<timestamp>/`, сводка `training_analysis.json`, ZIP `*_bundle.zip` (§9). Примеры в репозитории: `MLService/experiments/sag_only_20260411_191537/`, `MLService/experiments/sag_only_20260411_182037/`.
 
 Обновляй этот документ, когда появятся новые прогоны и новые `training_analysis*.json`.
 

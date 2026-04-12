@@ -81,15 +81,15 @@ models/*.pt
 models/*.onnx
 
 # ML Service - Experiments and Notebooks
-MLService/experiments/*/
+# Игнорируем всё под experiments/, кроме корневого README и любых README.md в подпапках прогонов.
+MLService/experiments/**
 !MLService/experiments/README.md
+!MLService/experiments/**/
+!MLService/experiments/**/README.md
 MLService/notebooks/.ipynb_checkpoints/
 MLService/validation/reports/
 .wandb/
 *.tensorboard
-
-# Keep README files in experiments
-!MLService/experiments/**/README.md
 
 # Personal / generated exports (presentation: docs/presentation + scripts/presentation)
 /diplom.pdf

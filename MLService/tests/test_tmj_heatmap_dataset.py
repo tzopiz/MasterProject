@@ -1,16 +1,22 @@
 """Tests for TMJHeatmapDataset — synthetic tests, no DICOM needed."""
-import sys, os, json, pytest
+
+import json
+import os
+import sys
+
 import numpy as np
+import pytest
 import torch
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from training.datasets.tmj_heatmap_dataset import TMJHeatmapDataset
 
 
-def _make_annotation(ann_dir, study_id, left=(288,240,180), right=(288,240,560)):
+def _make_annotation(ann_dir, study_id, left=(288, 240, 180), right=(288, 240, 560)):
     ann = {
         "scan_id": study_id,
         "original_shape": [576, 768, 768],
-        "left_tmj":  {"center": list(left),  "confidence": "manual"},
+        "left_tmj": {"center": list(left), "confidence": "manual"},
         "right_tmj": {"center": list(right), "confidence": "manual"},
     }
     (ann_dir / f"{study_id}_rois.json").write_text(json.dumps(ann))
@@ -24,8 +30,10 @@ class TestTMJHeatmapDataset:
         for sid in ("study_0001", "study_0002"):
             _make_annotation(ann_dir, sid)
         vol = np.random.rand(96, 128, 128).astype(np.float32)
+
         def mock_load(study_id):
             return vol
+
         return TMJHeatmapDataset(
             study_ids=["study_0001", "study_0002"],
             annotations_dir=str(ann_dir),

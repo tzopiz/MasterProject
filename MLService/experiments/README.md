@@ -1,10 +1,26 @@
 # Experiments Directory
 
-Эта директория содержит результаты всех экспериментов по обучению моделей.
+Эта директория содержит результаты экспериментов по обучению моделей в `MLService`. Содержимое подпапок по умолчанию **не в git** (см. корневой `.gitignore`), кроме файлов `README.md` внутри прогонов.
 
-## Структура эксперимента
+## Бинарный классификатор положения (ноутбук)
 
-Каждый эксперимент должен быть в отдельной папке с именем `exp_XXX_description/`:
+Ноутбук: `google_colab/train_binary_position_classifier.ipynb`.
+
+- **Куда пишет среда:** локально — `MLService/experiments/sag_only_<timestamp>/`; в DataSphere — `filestore/experiments/`; в Colab — `/content/experiments/`.
+- **Скачивание:** в конце ноутбука (§9) собирается ZIP `experiments/sag_only_<timestamp>_bundle.zip` со всей папкой прогона. Распаковка в репозиторий:
+
+```bash
+unzip -o sag_only_<timestamp>_bundle.zip -d MLService/experiments
+```
+
+- **Зафиксированные прогоны (2026-04-11):**
+  - [`sag_only_20260411_182037/`](sag_only_20260411_182037/README.md) — из `sag_only_20260411_182037_bundle.zip` (ранний stop по val acc, AUC калибровки низкий).
+  - [`sag_only_20260411_191537/`](sag_only_20260411_191537/README.md) — из `sag_only_20260411_191537.zip` (обновлённый ноутбук: warmup+cosine, чекпоинт по **val AUC**, AUC калибровки **~0.70**).
+  Внутри — `training_analysis.json`, `best_model.pth`, графики (крупные файлы в git не обязаны присутствовать; в репозитории как минимум `README.md` прогона).
+
+## Структура эксперимента (шаблон)
+
+Каждый эксперимент может быть в отдельной папке, например `exp_XXX_description/`:
 
 ```
 experiments/

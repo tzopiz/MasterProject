@@ -10,6 +10,10 @@
 | [train_position_classifier_2d.ipynb](train_position_classifier_2d.ipynb) | 2D multi-view (ResNet18): Approach C/A + секция **4b v5** (бинарные метки, multi-slice, CV по пациентам, SVM). Достаточно `tmj_crops/*.npy` + метки + manifest. |
 | [train_binary_position_classifier.ipynb](train_binary_position_classifier.ipynb) | **Approach A+B** — бинарная классификация (central vs non-central) с детектор-кропами 128³ (NIfTI) и BinaryFocalLoss + калибровка порога. Полностью самодостаточный ноутбук, поддерживает DataSphere (V100), Colab и локально. |
 
+### Артефакты binary-ноутбука
+
+Все файлы прогона (веса, `metrics.jsonl`, графики, `training_analysis.json`, ZIP) — в **`MLService/experiments/sag_only_<timestamp>/`**. Примеры локальных копий: **`../experiments/sag_only_20260411_191537/`** (последний зафиксированный), **`../experiments/sag_only_20260411_182037/`** — в каждой папке см. `README.md`. Сводка экспериментов: [POSITION_CLASSIFIER_EXPERIMENTS.md](POSITION_CLASSIFIER_EXPERIMENTS.md).
+
 ## Данные
 
 ### Полный пайплайн (3D-ноутбук)
