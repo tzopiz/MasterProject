@@ -3,6 +3,10 @@
 Сервис для автоматического анализа КЛКТ (CBCT) снимков ВНЧС (TMJ).
 Этот проект предоставляет API для анализа DICOM файлов, а также инструменты для обучения моделей детекции и сегментации.
 
+## Документация по папкам
+
+Краткие входы: [models/README.md](models/README.md) · [tools/README.md](tools/README.md) · [training/README.md](training/README.md) · [services/README.md](services/README.md) · [utils/README.md](utils/README.md) · [data/README.md](data/README.md) · [tests/README.md](tests/README.md) · [docs/README.md](docs/README.md) · [validation/README.md](validation/README.md) · [experiments/README.md](experiments/README.md) · [google_colab/README.md](google_colab/README.md)
+
 ---
 
 ## 🚀 Текущий пайплайн (Pipeline)

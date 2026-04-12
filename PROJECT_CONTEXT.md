@@ -43,7 +43,7 @@ MasterProject/
 └── AGENTS.md
 ```
 
-Уточнения по ML: структура `MLService/data/`, чекпойнты в `experiments/` — см. [MLService/models/README.md](MLService/models/README.md), [MLService/experiments/README.md](MLService/experiments/README.md), [MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md).
+Уточнения по ML: индекс по подпапкам — [MLService/README.md](MLService/README.md) (блок «Документация по папкам»); данные — [MLService/data/README.md](MLService/data/README.md); инструменты — [MLService/tools/README.md](MLService/tools/README.md); чекпойнты в `experiments/` — [MLService/experiments/README.md](MLService/experiments/README.md), [MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md).
 
 ## HTTP API (актуальность)
 

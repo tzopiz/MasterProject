@@ -15,6 +15,6 @@ build/
 uploads/
 *.dcm
 
-# Data
-data/
-MLService/data/
+# Data (локальные объёмы; в git только README каталога)
+data/**
+!data/README.md

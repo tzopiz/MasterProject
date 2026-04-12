@@ -13,7 +13,7 @@
 |-----------|------|------|
 | Backend | `Backend/` | Vapor, SQLite, приём DICOM-серии, вызов ML, выдача результатов |
 | ML Service | `MLService/` | FastAPI, PyTorch, детекция/обработка объёма |
-| iOS | `iOSApp/MasterDoctor/` | SwiftUI-клиент |
+| iOS | `iOSApp/MasterDoctor/` | SwiftUI-клиент; вход — [iOSApp/README.md](iOSApp/README.md) |
 
 Доменные синонимы: **TMJ** = **ВНЧС**, **CBCT** = **КЛКТ**.
 
@@ -26,7 +26,7 @@
 | Задача | Куда смотреть |
 |--------|----------------|
 | Запуск всей цепочки | [README.md](README.md) (раздел «Быстрый старт»), [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md) |
-| ML: обучение, датасет, инструменты | [MLService/README.md](MLService/README.md), [MLService/TRAINING_MONITORING.md](MLService/TRAINING_MONITORING.md) |
+| ML: обучение, датасет, инструменты | [MLService/README.md](MLService/README.md) (карта папок), [MLService/TRAINING_MONITORING.md](MLService/TRAINING_MONITORING.md) |
 | Классификатор положения ВНЧС (Colab / DataSphere) | [MLService/google_colab/README.md](MLService/google_colab/README.md), [MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md) |
 | Публичная CBCT-когорта (скрипты, данные) | `MLService/tools/`, `MLService/README.md` |
 | API Backend | `Backend/Sources/App/Controllers/`, [Backend/README.md](Backend/README.md) |

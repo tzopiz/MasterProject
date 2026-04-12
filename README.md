@@ -2,7 +2,7 @@
 
 Магистерский проект: iOS приложение с ИИ для анализа височно-нижнечелюстного сустава (ВНЧС) по снимкам КЛКТ.
 
-**Документация:** [AGENTS.md](AGENTS.md) (для ИИ-агентов) · [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) (термины, API, структура) · [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md) (типичные проблемы пайплайна)
+**Документация:** [AGENTS.md](AGENTS.md) (для ИИ-агентов) · [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) (термины, API, структура) · [TMJ_DETECTION_SETUP.md](TMJ_DETECTION_SETUP.md) (типичные проблемы пайплайна) · [MLService/README.md](MLService/README.md) (карта папок ML) · [.github/README.md](.github/README.md) (CI)
 
 ## Архитектура
 
@@ -10,7 +10,7 @@
 
 1. **Backend** (Swift Vapor) — API для задач и данных
 2. **MLService** (Python FastAPI) — ML-инференс и обработка DICOM
-3. **iOS App** (Swift/SwiftUI) — клиент ([iOSApp/ModularAppArchitecture.md](iOSApp/ModularAppArchitecture.md))
+3. **iOS App** (Swift/SwiftUI) — клиент ([iOSApp/README.md](iOSApp/README.md), [iOSApp/ModularAppArchitecture.md](iOSApp/ModularAppArchitecture.md))
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────────┐
