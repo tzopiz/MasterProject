@@ -18,7 +18,7 @@ Usage example:
         --batch-size 2 \\
         --output-dir experiments/position_run1
 
-See MLService/docs/TMJ_POSITION_CLASSIFIER.md for full documentation.
+See MLService/docs/README.md for full documentation.
 Refs #67
 """
 

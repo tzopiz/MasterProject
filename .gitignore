@@ -91,18 +91,17 @@ MLService/validation/reports/
 .wandb/
 *.tensorboard
 
-# Локальные материалы вне основного репозитория (клон может не содержать; не коммитить)
+# Локальные каталоги и файлы вне git (не коммитить)
 /docs/
 /Nir/
 /examples/
 /scripts/presentation/
 /plan.md
 
-# Личные / сгенерированные файлы
+# Личные / сгенерированные
 /diplom.pdf
 /тезисы_правила.pdf
 *.pages
 
-# Черновики агентских планов под MLService (при необходимости — только локально)
 MLService/docs/superpowers/
 

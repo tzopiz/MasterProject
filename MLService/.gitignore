@@ -12,12 +12,9 @@ dist/
 build/
 *.log
 .DS_Store
-models/*.pth
-models/*.pt
-models/*.onnx
 uploads/
 *.dcm
 
-# Data
-data/
-MLService/data/
+# Data (локальные объёмы; в git только README каталога)
+data/**
+!data/README.md
