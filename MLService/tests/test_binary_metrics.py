@@ -9,10 +9,10 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from training.utils.binary_metrics import (
-    binary_roc_auc,
     binary_metrics_at_threshold,
-    youden_optimal_threshold,
+    binary_roc_auc,
     calibration_report_binary_head,
+    youden_optimal_threshold,
 )
 
 
