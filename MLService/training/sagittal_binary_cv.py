@@ -13,10 +13,13 @@ report that must not be tuned.
 Training uses ``TMJBinaryPositionClassifier`` with loss only on the sagittal head
 (shared backbone; frontal head receives no gradient).
 
-**Logging:** when ``output_json`` is set, the written report includes per-fold
+**Logging:** when ``output_json`` is set, the report includes per-fold
 ``epoch_history`` (train loss, val AUC, val acc/balanced acc/F1 @ 0.5, LR each
-epoch) plus final metrics at the Youden threshold fit on train — enough to
-rebuild learning curves in Python or Excel without separate ``metrics.jsonl``.
+epoch) plus final metrics at the Youden threshold fit on train. The same path
+is **rewritten after each completed fold** (atomic write) with ``status`` /
+``completed_folds`` / ``n_splits`` so another process or notebook can read
+partial CV while training continues; the current fold appears only after it
+finishes.
 """
 
 from __future__ import annotations
@@ -83,6 +86,44 @@ def _json_sanitize(obj: Any) -> Any:
     if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
         return None
     return obj
+
+
+def _build_cv_report_dict(
+    cfg: "SagittalBinaryCVConfig",
+    fold_rows: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Full JSON payload: config, folds so far, summary, progress fields."""
+    from training.utils.binary_metrics import aggregate_fold_metrics
+
+    keys = (
+        "val_auc",
+        "val_balanced_accuracy",
+        "val_f1_minority",
+        "val_accuracy_at_threshold",
+    )
+    summary = aggregate_fold_metrics(fold_rows, keys)
+    aucs = [r["val_auc"] for r in fold_rows if not np.isnan(r["val_auc"])]
+    n_done = len(fold_rows)
+    return {
+        "config": asdict(cfg),
+        "folds": list(fold_rows),
+        "summary": summary,
+        "best_fold_auc": float(max(aucs)) if aucs else float("nan"),
+        "worst_fold_auc": float(min(aucs)) if aucs else float("nan"),
+        "status": "complete" if n_done >= cfg.n_splits else "in_progress",
+        "completed_folds": n_done,
+        "n_splits": cfg.n_splits,
+    }
+
+
+def _write_cv_report_json_atomic(path_str: str, report: Dict[str, Any]) -> None:
+    """Write JSON via a temp file + replace so readers never see a half file."""
+    p = Path(path_str)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(_json_sanitize(report), f, indent=2)
+    tmp.replace(p)
 
 
 @dataclass
@@ -291,7 +332,6 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
         build_index,
         iter_stratified_group_kfold_indices,
     )
-    from training.utils.binary_metrics import aggregate_fold_metrics
     from training.utils.seed import make_worker_init_fn, set_seed
 
     set_seed(cfg.seed)
@@ -356,28 +396,20 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
         fold_out["n_val_samples"] = len(val_recs)
         fold_rows.append(fold_out)
 
-    keys = (
-        "val_auc",
-        "val_balanced_accuracy",
-        "val_f1_minority",
-        "val_accuracy_at_threshold",
-    )
-    summary = aggregate_fold_metrics(fold_rows, keys)
-    aucs = [r["val_auc"] for r in fold_rows if not np.isnan(r["val_auc"])]
-    out: Dict[str, Any] = {
-        "config": asdict(cfg),
-        "folds": fold_rows,
-        "summary": summary,
-        "best_fold_auc": float(max(aucs)) if aucs else float("nan"),
-        "worst_fold_auc": float(min(aucs)) if aucs else float("nan"),
-    }
+        if cfg.output_json:
+            snap = _build_cv_report_dict(cfg, fold_rows)
+            _write_cv_report_json_atomic(cfg.output_json, snap)
+            logger.info(
+                "Wrote CV snapshot (%s, %d/%d folds) → %s",
+                snap["status"],
+                snap["completed_folds"],
+                snap["n_splits"],
+                cfg.output_json,
+            )
 
+    out = _build_cv_report_dict(cfg, fold_rows)
     if cfg.output_json:
-        p = Path(cfg.output_json)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w", encoding="utf-8") as f:
-            json.dump(_json_sanitize(out), f, indent=2)
-        logger.info("Wrote CV results → %s", p)
+        logger.info("CV finished → %s", cfg.output_json)
 
     return out
 
@@ -385,6 +417,11 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
 def _print_cv_table(result: Dict[str, Any]) -> None:
     s = result["summary"]
     print("\n=== Sagittal binary CV (5-fold StratifiedGroupKFold) ===")
+    if result.get("status") == "in_progress":
+        print(
+            f"(partial snapshot: {result.get('completed_folds', 0)}/"
+            f"{result.get('n_splits', '?')} folds)\n"
+        )
     print(f"mean val AUC: {s.get('mean_val_auc', float('nan')):.4f} ± {s.get('std_val_auc', 0):.4f}")
     print(
         f"mean balanced acc: {s.get('mean_val_balanced_accuracy', float('nan')):.4f} "
