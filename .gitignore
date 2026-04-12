@@ -94,6 +94,7 @@ MLService/validation/reports/
 # Локальные материалы вне основного репозитория (клон может не содержать; не коммитить)
 /docs/
 /Nir/
+/examples/
 /scripts/presentation/
 /plan.md
 

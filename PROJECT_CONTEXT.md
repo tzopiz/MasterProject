@@ -44,7 +44,7 @@ MasterProject/
 └── AGENTS.md          # Короткая памятка для ИИ-агентов
 ```
 
-Расширенные материалы (презентации, НИР, оглавление `docs/`, черновики планов) **не версионируются** — при необходимости держите копию у себя; в `.gitignore` заданы каталоги `docs/`, `Nir/`, `scripts/presentation/`, `plan.md`.
+Расширенные материалы (презентации, НИР, оглавление `docs/`, примеры данных в `examples/`, черновики планов) **не версионируются** — при необходимости держите копию у себя; в `.gitignore` заданы каталоги `docs/`, `Nir/`, `examples/`, `scripts/presentation/`, `plan.md`.
 
 Уточнения по ML: структура `MLService/data/`, чекпойнты в `experiments/`, игнорируемые тяжёлые артефакты — в `MLService/.gitignore` и [MLService/models/README.md](MLService/models/README.md). Обучение бинарного классификатора положения в Colab/DataSphere — ноутбук `MLService/google_colab/train_binary_position_classifier.ipynb`; выгрузка прогонов — [MLService/experiments/README.md](MLService/experiments/README.md), сводка метрик — [MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](MLService/google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md).
 
