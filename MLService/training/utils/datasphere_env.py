@@ -62,6 +62,8 @@ def _manifest_search_paths(dataset_dir: Path) -> list[Path]:
     paths = [
         dataset_dir / "manifest_private.json",
         dataset_dir / "manifest.json",
+        dataset_dir / "dataset_public" / "manifest_private.json",
+        dataset_dir / "dataset_cbct_public" / "manifest_private.json",
     ]
     if is_datasphere():
         paths.extend(
@@ -74,7 +76,11 @@ def _manifest_search_paths(dataset_dir: Path) -> list[Path]:
 
 
 def _labels_search_paths(dataset_dir: Path) -> list[Path]:
-    paths = [dataset_dir / "tmj_position_labels.json"]
+    paths = [
+        dataset_dir / "tmj_position_labels.json",
+        dataset_dir / "dataset_public" / "tmj_position_labels.json",
+        dataset_dir / "dataset_cbct_public" / "tmj_position_labels.json",
+    ]
     if is_datasphere():
         paths.append(FILESTORE / "tmj_position_labels.json")
     return paths

@@ -34,6 +34,33 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
+def _reconcile_cv_paths_if_missing(cfg: "SagittalBinaryCVConfig") -> None:
+    """
+    If ``cfg`` still points to removed default paths (e.g. old notebook / stale
+    kernel), re-resolve manifest and labels from the crop directory parent
+    (usually ``.../datasets/tmj``) plus filestore / nested dataset dirs.
+    """
+    from training.utils.datasphere_env import (
+        default_tmj_dataset_dir,
+        resolve_labels_path,
+        resolve_manifest_path,
+    )
+
+    mp = Path(cfg.manifest_path)
+    lp = Path(cfg.labels_path)
+    crop = Path(cfg.crop_dir).resolve()
+    hub = crop.parent if crop.parent.is_dir() else default_tmj_dataset_dir()
+
+    if not mp.is_file():
+        fixed = resolve_manifest_path(hub)
+        logger.warning("Manifest not found at %s — using %s", mp, fixed)
+        cfg.manifest_path = str(fixed)
+    if not lp.is_file():
+        fixed = resolve_labels_path(hub)
+        logger.warning("Labels not found at %s — using %s", lp, fixed)
+        cfg.labels_path = str(fixed)
+
+
 def _json_sanitize(obj: Any) -> Any:
     """Tuples → lists, NaN/inf → null for strict JSON export."""
     if isinstance(obj, dict):
@@ -248,6 +275,8 @@ def run_sagittal_binary_cv(cfg: SagittalBinaryCVConfig) -> Dict[str, Any]:
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
+
+    _reconcile_cv_paths_if_missing(cfg)
 
     all_records = build_index(
         manifest_path=cfg.manifest_path,
