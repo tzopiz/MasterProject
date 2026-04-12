@@ -1,6 +1,6 @@
 # TMJ Position Classifier — обучение в Colab / DataSphere / локально
 
-Ноутбуки для обучения классификатора положения головок ВНЧС по КЛКТ-кропам. Полная сводка экспериментов, метрик, сбоев и обходов — в **[POSITION_CLASSIFIER_EXPERIMENTS.md](POSITION_CLASSIFIER_EXPERIMENTS.md)** (обновляйте при новых прогонах и `training_analysis*.json`).
+Ноутбуки для обучения классификатора положения головок ВНЧС по КЛКТ-кропам. Полная сводка экспериментов, метрик, сбоев и обходов — в **[POSITION_CLASSIFIER_EXPERIMENTS.txt](POSITION_CLASSIFIER_EXPERIMENTS.txt)** (обновляйте при новых прогонах и `training_analysis*.json`).
 
 ## Ноутбуки
 
@@ -12,7 +12,7 @@
 
 ### Артефакты binary-ноутбука
 
-Все файлы прогона (веса, `metrics.jsonl`, графики, `training_analysis.json`, ZIP) — в **`MLService/experiments/sag_only_<timestamp>/`**. Примеры локальных копий: **`../experiments/sag_only_20260411_191537/`** (последний зафиксированный), **`../experiments/sag_only_20260411_182037/`** — в каждой папке см. `README.md`. Сводка экспериментов: [POSITION_CLASSIFIER_EXPERIMENTS.md](POSITION_CLASSIFIER_EXPERIMENTS.md).
+Все файлы прогона (веса, `metrics.jsonl`, графики, `training_analysis.json`, ZIP) — в **`MLService/experiments/sag_only_<timestamp>/`**. Примеры локальных копий: **`../experiments/sag_only_20260411_191537/`** (последний зафиксированный), **`../experiments/sag_only_20260411_182037/`** — в каждой папке см. `README.md`. Сводка экспериментов: [POSITION_CLASSIFIER_EXPERIMENTS.txt](POSITION_CLASSIFIER_EXPERIMENTS.txt).
 
 ## Данные
 
@@ -44,7 +44,7 @@ tmj_data/
 ## Где лежат данные (по средам)
 
 - **Google Colab:** монтирование Drive → `My Drive/tmj_data/` (ячейка с `drive.mount`).
-- **Yandex DataSphere:** датасет проекта `tmj_data` → `/home/jupyter/datasets/tmj_data/`; кэш фич и артефакты — `/home/jupyter/project/` (см. ячейки Setup в 2D-ноутбуке). Прямое скачивание с Google Drive из среды часто **недоступно** — типичный путь: скачать `tmj_data_lite.zip` локально, **Upload** в проект, `unzip` в `datasets/`, при необходимости оформить датасет через `#pragma dataset init` (см. [POSITION_CLASSIFIER_EXPERIMENTS.md](POSITION_CLASSIFIER_EXPERIMENTS.md)).
+- **Yandex DataSphere:** датасет проекта `tmj_data` → `/home/jupyter/datasets/tmj_data/`; кэш фич и артефакты — `/home/jupyter/project/` (см. ячейки Setup в 2D-ноутбуке). Прямое скачивание с Google Drive из среды часто **недоступно** — типичный путь: скачать `tmj_data_lite.zip` локально, **Upload** в проект, `unzip` в `datasets/`, при необходимости оформить датасет через `#pragma dataset init` (см. [POSITION_CLASSIFIER_EXPERIMENTS.txt](POSITION_CLASSIFIER_EXPERIMENTS.txt)).
 - **Локально:** `./data/tmj_data/` относительно ноутбука.
 
 ## Запуск
@@ -86,4 +86,4 @@ tmj_data/
 
 ## Связь с сервисом
 
-Обучение «в репозитории» для продакшена описано в [MLService/README.md](../README.md) (`train_tmj_position_classifier.py`, `docs/TMJ_POSITION_CLASSIFIER.md`). Ноутбуки здесь — исследовательский контур (Colab/DataSphere); веса и отчёты выгружаются вручную.
+Обучение «в репозитории» для продакшена описано в [MLService/README.md](../README.md) (`train_tmj_position_classifier.py`, [docs/README.md](../docs/README.md)). Ноутбуки здесь — исследовательский контур (Colab/DataSphere); веса и отчёты выгружаются вручную.

@@ -90,6 +90,6 @@ GET /api/analysis/{taskId}
 ## См. также
 
 - [README.md](../README.md) — обзор репозитория и быстрый старт
-- [PROJECT_CONTEXT.md](../PROJECT_CONTEXT.md) — термины и сводка HTTP API
+- [AGENTS.md](../AGENTS.md) — правила для агентов и документации
 - [iOSApp/README.md](../iOSApp/README.md) — клиент
 

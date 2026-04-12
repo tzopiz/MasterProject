@@ -7,7 +7,7 @@ then extracts a central crop of fixed size (D×H×W).
 
 MVP limitation: central crop is taken from the whole volume without any
 ROI detector. A note about transitioning to detector-based crops is in
-MLService/docs/TMJ_POSITION_CLASSIFIER.md (issue #67).
+MLService/docs/README.md (issue #67).
 
 Each __getitem__ returns:
     volume_tensor : (1, D, H, W) float32, values in [0, 1]

@@ -12,4 +12,4 @@
 
 ## Мониторинг обучения
 
-См. [../TRAINING_MONITORING.md](../TRAINING_MONITORING.md).
+См. раздел «Мониторинг обучения» в [../README.md](../README.md).

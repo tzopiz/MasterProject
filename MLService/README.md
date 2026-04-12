@@ -34,8 +34,8 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 ### 3. Классификация положения (Position Classification)
 Предсказание положения головок ВНЧС (сагитталь + фронталь, лево + право).
 - **Метки:** `data/tmj_position_labels.json` (6 кодов, 4 метки на пациента).
-- **Документация:** [docs/TMJ_POSITION_CLASSIFIER.md](docs/TMJ_POSITION_CLASSIFIER.md)
-- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md) и сводка прогонов [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.md)
+- **Документация:** [docs/README.md](docs/README.md)
+- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md); длинная сводка прогонов — [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt)
 
 #### 3-классовый (v1–v4, baseline)
 - **Обучение:** `train_tmj_position_classifier.py`
@@ -211,14 +211,13 @@ python tools/sync_cbct_cohort.py --download
 
 ## 📊 Мониторинг обучения
 
-Для слежения за процессом обучения (Detector или Segmentation) используйте логи в терминале или файлы в `experiments/`.
+Для Detector / Segmentation смотрите вывод процесса в терминале и каталог прогона `experiments/<имя>/` (`train.log`, `metrics.jsonl`, `best_model.pth`, `config.json`).
 
-**Полезные команды:**
-- `tail -f <logfile>`: Следить в реальном времени.
-- `grep "best" <logfile>`: Найти лучшие эпохи.
-- `grep "Val MAE" <logfile>`: Посмотреть метрики валидации.
-
-Подробнее см. `TRAINING_MONITORING.md` (если доступен).
+**Ориентиры:**
+- `ls -la experiments/detector_*/` — какие прогоны есть.
+- `tail -f experiments/<прогон>/train.log` — если лог пишется в файл (зависит от скрипта).
+- `grep -E "Epoch|Saved best|MAE|Early"` — по сохранённому логу или выводу в терминале.
+- `cat experiments/<прогон>/config.json` — параметры запуска.
 
 ---
 

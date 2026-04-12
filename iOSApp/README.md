@@ -5,7 +5,7 @@ SwiftUI-клиент **AI Doctor** для загрузки КЛКТ и прос�
 ## Содержимое
 
 - **`MasterDoctor/`** — Xcode-проект, модули `MainFeatures`, `Foundation`, `CommonCore` и т.д.
-- **`ModularAppArchitecture.md`** — устройство модулей и зависимостей.
+- **`ModularAppArchitecture.txt`** — устройство модулей и зависимостей (UTF-8; в каталоге только один `README.md` и файлы не `.md`).
 
 ## Запуск
 
