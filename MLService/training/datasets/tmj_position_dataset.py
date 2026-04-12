@@ -388,6 +388,9 @@ def make_binary_position_loaders(
         "num_workers": num_workers,
         "pin_memory": True,
     }
+    if num_workers > 0:
+        loader_kw["persistent_workers"] = True
+        loader_kw["prefetch_factor"] = 2
     if worker_init_fn is not None:
         loader_kw["worker_init_fn"] = worker_init_fn
 
