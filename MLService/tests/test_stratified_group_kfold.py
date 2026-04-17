@@ -55,7 +55,9 @@ def test_patient_strat_max_takes_asymmetric():
 
 def test_kfold_no_patient_leakage():
     recs = _synthetic_binary_records()
-    folds = list(iter_stratified_group_kfold_indices(recs, n_splits=5, shuffle=True, random_state=0))
+    folds = list(
+        iter_stratified_group_kfold_indices(recs, n_splits=5, shuffle=True, random_state=0)
+    )
     assert len(folds) == 5
     for tr_idx, va_idx in folds:
         tr_pat = {recs[i]["patient_name"] for i in tr_idx}
