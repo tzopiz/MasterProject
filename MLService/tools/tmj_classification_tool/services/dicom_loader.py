@@ -3,13 +3,13 @@ DICOM Loader Service
 Scans patient directories and loads DICOM studies
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pydicom
-from datetime import datetime
 
 # Add MLService directory to path for DICOMProcessor import
 MLSERVICE_DIR = Path(__file__).parent.parent.parent
@@ -17,7 +17,7 @@ if str(MLSERVICE_DIR) not in sys.path:
     sys.path.insert(0, str(MLSERVICE_DIR))
 
 # Import DICOMProcessor from MLService/services
-from services.dicom_processor import DICOMProcessor
+from services.dicom_processor import DICOMProcessor  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def convert_dicom_value(value: Any) -> Any:
     if hasattr(value, '__iter__') and not isinstance(value, (str, bytes, dict)):
         try:
             return [convert_dicom_value(v) for v in value]
-        except:
+        except Exception:
             return str(value)
     
     # Handle numpy types

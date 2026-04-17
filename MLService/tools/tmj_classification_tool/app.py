@@ -4,13 +4,13 @@ TMJ Classification Tool - Web Application
 Инструмент для разметки DICOM исследований ВНЧС с визуализацией в 3 плоскостях
 """
 
+import logging
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
-import logging
+from typing import Dict
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -24,8 +24,8 @@ sys.path.insert(0, str(MLSERVICE_DIR))
 sys.path.insert(1, str(TOOL_DIR))
 
 # Import tool services with explicit path to avoid conflicts
-import importlib
-import importlib.util
+import importlib  # noqa: E402
+import importlib.util  # noqa: E402
 
 # Import FileCleaner from tool's services
 spec = importlib.util.spec_from_file_location(

@@ -3,19 +3,17 @@
 Continue training from checkpoint
 """
 import argparse
-import logging
-import sys
-import os
-from pathlib import Path
-import datetime
 import json
-import shutil
+import logging
+import os
+import sys
+from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
-import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -156,7 +154,7 @@ def main(args):
     logger.info(f"Original config: {config}")
     
     # Data
-    logger.info(f"Loading data...")
+    logger.info("Loading data...")
     train_loader, val_loader = get_dataloaders(
         annotations_dir=config['annotations'],
         dataset_dir=config['dataset'],
@@ -187,7 +185,7 @@ def main(args):
         try:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             logger.info("Loaded optimizer state")
-        except:
+        except Exception:
             logger.warning("Could not load optimizer state, using fresh optimizer")
     
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
