@@ -470,7 +470,9 @@ def _print_cv_table(result: Dict[str, Any]) -> None:
             f"(partial snapshot: {result.get('completed_folds', 0)}/"
             f"{result.get('n_splits', '?')} folds)\n"
         )
-    print(f"mean val AUC: {s.get('mean_val_auc', float('nan')):.4f} ± {s.get('std_val_auc', 0):.4f}")
+    print(
+        f"mean val AUC: {s.get('mean_val_auc', float('nan')):.4f} ± {s.get('std_val_auc', 0):.4f}"
+    )
     print(
         f"mean balanced acc: {s.get('mean_val_balanced_accuracy', float('nan')):.4f} "
         f"± {s.get('std_val_balanced_accuracy', 0):.4f}"
@@ -585,7 +587,12 @@ def analyze_sagittal_cv_result(
         ln(f"  {key}: {v}")
 
     ln()
-    ln("  best_fold_auc:", result.get("best_fold_auc"), "  worst_fold_auc:", result.get("worst_fold_auc"))
+    ln(
+        "  best_fold_auc:",
+        result.get("best_fold_auc"),
+        "  worst_fold_auc:",
+        result.get("worst_fold_auc"),
+    )
 
     folds = result.get("folds") or []
     epoch_rows: List[Dict[str, Any]] = []
@@ -735,9 +742,13 @@ def analyze_sagittal_cv_result(
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    parser = argparse.ArgumentParser(description="Sagittal binary position — StratifiedGroupKFold CV")
+    parser = argparse.ArgumentParser(
+        description="Sagittal binary position — StratifiedGroupKFold CV"
+    )
     parser.add_argument("--crop-dir", default="data/detector_crops")
-    parser.add_argument("--manifest-private", default="data/dataset_cbct_public/manifest_private.json")
+    parser.add_argument(
+        "--manifest-private", default="data/dataset_cbct_public/manifest_private.json"
+    )
     parser.add_argument("--labels-json", default="data/tmj_position_labels.json")
     parser.add_argument("--dataset-root", default="data/dataset_cbct_public")
     parser.add_argument("--output-json", default="", help="Write full JSON report to this path")

@@ -21,35 +21,40 @@ import subprocess
 import sys
 from pathlib import Path
 
-DATASET_DIR    = Path("data/dataset_cbct_public")
+DATASET_DIR = Path("data/dataset_cbct_public")
 ANNOTATIONS_DIR = Path("data/roi_annotations")
-TOOL           = Path("tools/roi_annotation_tool.py")
+TOOL = Path("tools/roi_annotation_tool.py")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Batch TMJ annotation")
-    parser.add_argument("--redo",   action="store_true",
-                        help="Re-annotate all studies, overwriting existing")
-    parser.add_argument("--from",   dest="start_from", default=None,
-                        help="Start from this study_id (skip earlier ones)")
+    parser.add_argument(
+        "--redo", action="store_true", help="Re-annotate all studies, overwriting existing"
+    )
+    parser.add_argument(
+        "--from",
+        dest="start_from",
+        default=None,
+        help="Start from this study_id (skip earlier ones)",
+    )
     parser.add_argument("--dataset", default=str(DATASET_DIR))
-    parser.add_argument("--output",  default=str(ANNOTATIONS_DIR))
+    parser.add_argument("--output", default=str(ANNOTATIONS_DIR))
     args = parser.parse_args()
 
     dataset_dir = Path(args.dataset)
-    ann_dir     = Path(args.output)
+    ann_dir = Path(args.output)
     ann_dir.mkdir(parents=True, exist_ok=True)
 
     # All studies, sorted
-    all_studies = sorted(d.name for d in dataset_dir.iterdir()
-                         if d.is_dir() and d.name.startswith("study_"))
+    all_studies = sorted(
+        d.name for d in dataset_dir.iterdir() if d.is_dir() and d.name.startswith("study_")
+    )
     if not all_studies:
         print(f"No studies found in {dataset_dir}")
         sys.exit(1)
 
     # Already annotated
-    annotated = {p.stem.replace("_rois", "")
-                 for p in ann_dir.glob("*_rois.json")}
+    annotated = {p.stem.replace("_rois", "") for p in ann_dir.glob("*_rois.json")}
 
     # Decide which to process
     if args.redo:
@@ -82,22 +87,19 @@ def main():
             print(f"[{i}/{len(to_annotate)}] SKIP {study_id} (directory not found)")
             continue
 
-        print(f"\n[{i}/{len(to_annotate)}] {study_id}  "
-              f"(total done this session: {done})")
+        print(f"\n[{i}/{len(to_annotate)}] {study_id}  (total done this session: {done})")
 
         result = subprocess.run(
-            [sys.executable, str(TOOL),
-             str(dicom_dir),
-             "--output", str(ann_dir)],
+            [sys.executable, str(TOOL), str(dicom_dir), "--output", str(ann_dir)],
         )
 
         # Check if annotation was saved
         ann_file = ann_dir / f"{study_id}_rois.json"
         if ann_file.exists():
             done += 1
-            print(f"  ✓ Saved ({done} done, {len(to_annotate)-i} remaining)")
+            print(f"  ✓ Saved ({done} done, {len(to_annotate) - i} remaining)")
         else:
-            print(f"  ✗ Not saved (skipped?)")
+            print("  ✗ Not saved (skipped?)")
 
         if result.returncode != 0:
             ans = input("\nAnnotation tool exited with error. Continue? [y/N]: ")

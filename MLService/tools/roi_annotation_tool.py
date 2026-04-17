@@ -21,50 +21,49 @@ Controls:
     Q / ESC          : Выход без сохранения
 """
 
-import sys
-import os
-from pathlib import Path
 import json
 import logging
+import os
+import sys
 from datetime import datetime
+from pathlib import Path
 
-import numpy as np
 import cv2
+import numpy as np
 import pydicom
 from tqdm import tqdm
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 PANEL_H = 512
 PANEL_W = 512
 
-COL_LEFT    = (0,   220,   0)    # green
-COL_RIGHT   = (220,   0,   0)    # blue
-COL_CROSS   = (180, 180,   0)    # yellow
-COL_LOCKED  = (120, 120, 120)    # grey (locked annotation)
+COL_LEFT = (0, 220, 0)  # green
+COL_RIGHT = (220, 0, 0)  # blue
+COL_CROSS = (180, 180, 0)  # yellow
+COL_LOCKED = (120, 120, 120)  # grey (locked annotation)
 
 # Stages
-STAGE_LEFT    = "LEFT"       # placing left joint
-STAGE_RIGHT   = "RIGHT"      # left locked, placing right
-STAGE_PREVIEW = "PREVIEW"    # both saved, showing result
+STAGE_LEFT = "LEFT"  # placing left joint
+STAGE_RIGHT = "RIGHT"  # left locked, placing right
+STAGE_PREVIEW = "PREVIEW"  # both saved, showing result
 
 
 class ROIAnnotationTool:
     def __init__(self, dicom_dir: str, output_dir: str):
-        self.dicom_dir   = Path(dicom_dir)
-        self.output_dir  = Path(output_dir)
+        self.dicom_dir = Path(dicom_dir)
+        self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.volume         = None
-        self.current_slice  = 0
-        self.scan_id        = None
+        self.volume = None
+        self.current_slice = 0
+        self.scan_id = None
         self.original_shape = None
 
-        self.left_tmj  = None   # [z, y, x]
+        self.left_tmj = None  # [z, y, x]
         self.right_tmj = None
-        self.stage     = STAGE_LEFT
+        self.stage = STAGE_LEFT
 
         self.brightness = 1.0
         self.window_name = "ROI Annotation Tool"
@@ -89,9 +88,8 @@ class ROIAnnotationTool:
             raise ValueError(f"No DICOM files in {dicom_dir}")
 
         logger.info(f"Found {len(files)} DICOM files")
-        slices = [pydicom.dcmread(str(f)) for f in
-                  tqdm(files, desc="Reading DICOM")]
-        slices.sort(key=lambda s: float(getattr(s, 'InstanceNumber', 0)))
+        slices = [pydicom.dcmread(str(f)) for f in tqdm(files, desc="Reading DICOM")]
+        slices.sort(key=lambda s: float(getattr(s, "InstanceNumber", 0)))
 
         vol = np.stack([s.pixel_array.astype(np.float32) for s in slices])
         p2, p98 = np.percentile(vol, [2, 98])
@@ -110,10 +108,10 @@ class ROIAnnotationTool:
         try:
             with open(ann_file) as f:
                 data = json.load(f)
-            self.left_tmj  = data["left_tmj"]["center"]
+            self.left_tmj = data["left_tmj"]["center"]
             self.right_tmj = data["right_tmj"]["center"]
             self.current_slice = self.left_tmj[0]
-            self.stage = STAGE_PREVIEW   # show existing annotation immediately
+            self.stage = STAGE_PREVIEW  # show existing annotation immediately
             logger.info(f"Loaded: L={self.left_tmj}  R={self.right_tmj}")
         except Exception as e:
             logger.warning(f"Could not load annotation: {e}")
@@ -125,8 +123,7 @@ class ROIAnnotationTool:
     def _adj(self, sl: np.ndarray) -> np.ndarray:
         return np.clip(sl.astype(np.float32) * self.brightness, 0, 255).astype(np.uint8)
 
-    def _make_panel(self, raw, label, cross_rc=None,
-                    dots=None) -> np.ndarray:
+    def _make_panel(self, raw, label, cross_rc=None, dots=None) -> np.ndarray:
         """
         raw    : (H, W) uint8
         dots   : list of (row, col, color, label_str)
@@ -144,17 +141,19 @@ class ROIAnnotationTool:
             cv2.line(bgr, (0, py), (PANEL_W, py), COL_CROSS, 1)
             cv2.line(bgr, (px, 0), (px, PANEL_H), COL_CROSS, 1)
 
-        for dot in (dots or []):
+        for dot in dots or []:
             r, c, col, tag = dot
             px, py = to_p(r, c)
             cv2.circle(bgr, (px, py), 10, col, 2)
-            cv2.circle(bgr, (px, py),  2, col, -1)
+            cv2.circle(bgr, (px, py), 2, col, -1)
             if tag:
-                cv2.putText(bgr, tag, (px + 14, py - 8),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2, cv2.LINE_AA)
+                cv2.putText(
+                    bgr, tag, (px + 14, py - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2, cv2.LINE_AA
+                )
 
-        cv2.putText(bgr, label, (8, 22),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1, cv2.LINE_AA)
+        cv2.putText(
+            bgr, label, (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1, cv2.LINE_AA
+        )
         return bgr
 
     def _build_display(self) -> np.ndarray:
@@ -162,8 +161,13 @@ class ROIAnnotationTool:
         z = self.current_slice
 
         # Reference point for coronal/sagittal: active annotation
-        active = self.left_tmj if self.stage in (STAGE_LEFT, STAGE_RIGHT) and self.left_tmj else \
-                 self.right_tmj if self.right_tmj else None
+        active = (
+            self.left_tmj
+            if self.stage in (STAGE_LEFT, STAGE_RIGHT) and self.left_tmj
+            else self.right_tmj
+            if self.right_tmj
+            else None
+        )
         if self.stage == STAGE_RIGHT and self.right_tmj:
             active = self.right_tmj
         ref_y = active[1] if active else H // 2
@@ -172,8 +176,7 @@ class ROIAnnotationTool:
         # ── AXIAL panel (volume[z, :, :]) ──
         axial_raw = self._adj(self.volume[z])
         axial_dots = []
-        for ann, col, tag in [(self.left_tmj, COL_LEFT, "L"),
-                               (self.right_tmj, COL_RIGHT, "R")]:
+        for ann, col, tag in [(self.left_tmj, COL_LEFT, "L"), (self.right_tmj, COL_RIGHT, "R")]:
             if ann is None:
                 continue
             # in STAGE_LEFT, left is being placed → bright; right N/A
@@ -185,33 +188,42 @@ class ROIAnnotationTool:
                 alpha = 1.0 - abs(ann[0] - z) / 4.0
                 c = tuple(int(v * alpha) for v in effective_col)
                 axial_dots.append((ann[1], ann[2], c, tag if ann[0] == z else ""))
-        p_axial = self._make_panel(axial_raw, f"AXIAL  z={z}/{D}",
-                                   cross_rc=(ref_y, ref_x) if active else None,
-                                   dots=axial_dots)
+        p_axial = self._make_panel(
+            axial_raw,
+            f"AXIAL  z={z}/{D}",
+            cross_rc=(ref_y, ref_x) if active else None,
+            dots=axial_dots,
+        )
 
         # ── CORONAL panel (volume[:, ref_y, :]) rows=Z, cols=X ──
-        cor_raw  = self._adj(self.volume[:, ref_y, :])
+        cor_raw = self._adj(self.volume[:, ref_y, :])
         cor_dots = []
         if self.left_tmj:
             col = COL_LOCKED if self.stage == STAGE_RIGHT else COL_LEFT
             cor_dots.append((self.left_tmj[0], self.left_tmj[2], col, "L"))
         if self.right_tmj:
             cor_dots.append((self.right_tmj[0], self.right_tmj[2], COL_RIGHT, "R"))
-        p_cor = self._make_panel(cor_raw, f"CORONAL  y={ref_y}/{H}",
-                                 cross_rc=(z, ref_x) if active else (z, W // 2),
-                                 dots=cor_dots)
+        p_cor = self._make_panel(
+            cor_raw,
+            f"CORONAL  y={ref_y}/{H}",
+            cross_rc=(z, ref_x) if active else (z, W // 2),
+            dots=cor_dots,
+        )
 
         # ── SAGITTAL panel (volume[:, :, ref_x]) rows=Z, cols=Y ──
-        sag_raw  = self._adj(self.volume[:, :, ref_x])
+        sag_raw = self._adj(self.volume[:, :, ref_x])
         sag_dots = []
         if self.left_tmj:
             col = COL_LOCKED if self.stage == STAGE_RIGHT else COL_LEFT
             sag_dots.append((self.left_tmj[0], self.left_tmj[1], col, "L"))
         if self.right_tmj:
             sag_dots.append((self.right_tmj[0], self.right_tmj[1], COL_RIGHT, "R"))
-        p_sag = self._make_panel(sag_raw, f"SAGITTAL  x={ref_x}/{W}",
-                                 cross_rc=(z, ref_y) if active else (z, H // 2),
-                                 dots=sag_dots)
+        p_sag = self._make_panel(
+            sag_raw,
+            f"SAGITTAL  x={ref_x}/{W}",
+            cross_rc=(z, ref_y) if active else (z, H // 2),
+            dots=sag_dots,
+        )
 
         combined = np.hstack([p_axial, p_cor, p_sag])
 
@@ -231,19 +243,20 @@ class ROIAnnotationTool:
             col = (220, 220, 100)
             ctrl = "S:выход  E:редактировать  A/D:срез  +/-:яркость  Q:выход"
 
-        cv2.putText(bar, stage_txt, (10, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.52, col, 1, cv2.LINE_AA)
+        cv2.putText(bar, stage_txt, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.52, col, 1, cv2.LINE_AA)
 
-        lz = self.left_tmj[0]  if self.left_tmj  else '-'
-        rz = self.right_tmj[0] if self.right_tmj else '-'
-        status = (f"{self.scan_id}  |  "
-                  f"L: {'z='+str(lz) if self.left_tmj else '—'}  "
-                  f"R: {'z='+str(rz) if self.right_tmj else '—'}  |  "
-                  f"Готово: {self.annotated_count}")
-        cv2.putText(bar, status, (10, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 180, 180), 1, cv2.LINE_AA)
-        cv2.putText(bar, ctrl, (10, 54),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (120, 120, 120), 1)
+        lz = self.left_tmj[0] if self.left_tmj else "-"
+        rz = self.right_tmj[0] if self.right_tmj else "-"
+        status = (
+            f"{self.scan_id}  |  "
+            f"L: {'z=' + str(lz) if self.left_tmj else '—'}  "
+            f"R: {'z=' + str(rz) if self.right_tmj else '—'}  |  "
+            f"Готово: {self.annotated_count}"
+        )
+        cv2.putText(
+            bar, status, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 180, 180), 1, cv2.LINE_AA
+        )
+        cv2.putText(bar, ctrl, (10, 54), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (120, 120, 120), 1)
 
         return np.vstack([combined, bar])
 
@@ -266,10 +279,10 @@ class ROIAnnotationTool:
 
         if event != cv2.EVENT_LBUTTONDOWN:
             return
-        if y >= PANEL_H:     # info bar — ignore
+        if y >= PANEL_H:  # info bar — ignore
             return
         if self.stage == STAGE_PREVIEW:
-            return           # no edits in preview
+            return  # no edits in preview
 
         panel_idx = x // PANEL_W
         lx = x % PANEL_W
@@ -280,18 +293,18 @@ class ROIAnnotationTool:
         ref_y = active[1] if active else H // 2
         ref_x = active[2] if active else W // 2
 
-        if panel_idx == 0:       # Axial: rows=Y, cols=X
+        if panel_idx == 0:  # Axial: rows=Y, cols=X
             oz = self.current_slice
             oy = int(ly * H / PANEL_H)
             ox = int(lx * W / PANEL_W)
 
-        elif panel_idx == 1:     # Coronal ([:, ref_y, :]): rows=Z, cols=X
+        elif panel_idx == 1:  # Coronal ([:, ref_y, :]): rows=Z, cols=X
             oz = int(ly * D / PANEL_H)
             ox = int(lx * W / PANEL_W)
             oy = ref_y
             self.current_slice = oz
 
-        elif panel_idx == 2:     # Sagittal ([:, :, ref_x]): rows=Z, cols=Y
+        elif panel_idx == 2:  # Sagittal ([:, :, ref_x]): rows=Z, cols=Y
             oz = int(ly * D / PANEL_H)
             oy = int(lx * H / PANEL_W)
             ox = ref_x
@@ -323,10 +336,8 @@ class ROIAnnotationTool:
             "dicom_dir": str(self.dicom_dir),
             "original_shape": [int(v) for v in self.original_shape],
             "annotated_at": datetime.now().isoformat(),
-            "left_tmj":  {"center": [int(v) for v in self.left_tmj],
-                          "confidence": "manual"},
-            "right_tmj": {"center": [int(v) for v in self.right_tmj],
-                          "confidence": "manual"},
+            "left_tmj": {"center": [int(v) for v in self.left_tmj], "confidence": "manual"},
+            "right_tmj": {"center": [int(v) for v in self.right_tmj], "confidence": "manual"},
         }
         out = self.output_dir / f"{self.scan_id}_rois.json"
         with open(out, "w") as f:
@@ -362,7 +373,7 @@ class ROIAnnotationTool:
             return False
 
         else:  # STAGE_PREVIEW
-            return True   # exit
+            return True  # exit
 
     # ------------------------------------------------------------------ #
     #  Main loop                                                            #
@@ -389,23 +400,23 @@ class ROIAnnotationTool:
         while True:
             key = cv2.waitKey(1) & 0xFF
 
-            if key in (ord('q'), 27):
+            if key in (ord("q"), 27):
                 break
 
-            elif key == ord('s'):
+            elif key == ord("s"):
                 if self._handle_s():
                     break
 
-            elif key == ord('e'):
+            elif key == ord("e"):
                 # E: enter edit mode from PREVIEW (re-annotate from scratch)
                 if self.stage == STAGE_PREVIEW:
                     self.stage = STAGE_LEFT
-                    self.left_tmj  = None
+                    self.left_tmj = None
                     self.right_tmj = None
                     logger.info("Режим редактирования — поставь LEFT заново")
                     self.update_display()
 
-            elif key == ord('u'):
+            elif key == ord("u"):
                 if self.stage == STAGE_LEFT:
                     self.left_tmj = None
                 elif self.stage == STAGE_RIGHT:
@@ -413,29 +424,27 @@ class ROIAnnotationTool:
                 # PREVIEW: no undo (use E to re-edit)
                 self.update_display()
 
-            elif key in (ord('+'), ord('=')):
+            elif key in (ord("+"), ord("=")):
                 self.brightness = min(self.brightness + 0.1, 3.0)
                 self.update_display()
 
-            elif key in (ord('-'), ord('_')):
+            elif key in (ord("-"), ord("_")):
                 self.brightness = max(self.brightness - 0.1, 0.1)
                 self.update_display()
 
-            elif key in (ord('d'), 83):
-                self.current_slice = min(self.current_slice + 1,
-                                         self.original_shape[0] - 1)
+            elif key in (ord("d"), 83):
+                self.current_slice = min(self.current_slice + 1, self.original_shape[0] - 1)
                 self.update_display()
 
-            elif key in (ord('a'), 81):
+            elif key in (ord("a"), 81):
                 self.current_slice = max(self.current_slice - 1, 0)
                 self.update_display()
 
-            elif key == ord('D'):
-                self.current_slice = min(self.current_slice + 10,
-                                         self.original_shape[0] - 1)
+            elif key == ord("D"):
+                self.current_slice = min(self.current_slice + 10, self.original_shape[0] - 1)
                 self.update_display()
 
-            elif key == ord('A'):
+            elif key == ord("A"):
                 self.current_slice = max(self.current_slice - 10, 0)
                 self.update_display()
 
@@ -444,10 +453,11 @@ class ROIAnnotationTool:
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(
         description="ROI Annotation Tool for TMJ Detection Dataset",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
     parser.add_argument("dicom_dir", type=str)
     parser.add_argument("--output", type=str, default="data/roi_annotations")

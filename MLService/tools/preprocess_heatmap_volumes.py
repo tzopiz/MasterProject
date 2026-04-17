@@ -18,7 +18,6 @@ Usage:
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -26,10 +25,10 @@ import pydicom
 from scipy import ndimage
 from tqdm import tqdm
 
-DATASET_DIR  = Path("data/dataset_cbct_public")
-SPLIT_JSON   = Path("data/detector_split.json")
-OUTPUT_DIR   = Path("data/heatmap_volumes")
-DS_FACTOR    = 6
+DATASET_DIR = Path("data/dataset_cbct_public")
+SPLIT_JSON = Path("data/detector_split.json")
+OUTPUT_DIR = Path("data/heatmap_volumes")
+DS_FACTOR = 6
 
 
 def load_and_preprocess(study_dir: Path) -> np.ndarray:
@@ -44,9 +43,11 @@ def load_and_preprocess(study_dir: Path) -> np.ndarray:
     planes = []
     for s in slices:
         arr = s.pixel_array.astype(np.float32)
-        arr = arr * float(getattr(s, "RescaleSlope", 1.0)) + float(getattr(s, "RescaleIntercept", 0.0))
+        arr = arr * float(getattr(s, "RescaleSlope", 1.0)) + float(
+            getattr(s, "RescaleIntercept", 0.0)
+        )
         planes.append(arr)
-    volume = np.stack(planes, axis=0)   # (D, H, W) float32
+    volume = np.stack(planes, axis=0)  # (D, H, W) float32
 
     # Normalize to [0, 255]
     p2, p98 = np.percentile(volume, [2, 98])
@@ -63,14 +64,15 @@ def load_and_preprocess(study_dir: Path) -> np.ndarray:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset-dir", default=str(DATASET_DIR))
-    parser.add_argument("--split-json",  default=str(SPLIT_JSON))
-    parser.add_argument("--output-dir",  default=str(OUTPUT_DIR))
-    parser.add_argument("--skip-existing", action="store_true",
-                        help="Skip studies already processed")
+    parser.add_argument("--split-json", default=str(SPLIT_JSON))
+    parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
+    parser.add_argument(
+        "--skip-existing", action="store_true", help="Skip studies already processed"
+    )
     args = parser.parse_args()
 
     dataset_dir = Path(args.dataset_dir)
-    output_dir  = Path(args.output_dir)
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     with open(args.split_json) as f:

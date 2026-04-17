@@ -61,6 +61,7 @@ HEAD_NAMES = ["sag_right", "sag_left", "fr_right", "fr_left"]
 # Metrics
 # ---------------------------------------------------------------------------
 
+
 def compute_accuracy(logits_tuple, labels: torch.Tensor):
     """
     Compute per-head and mean accuracy.
@@ -86,6 +87,7 @@ def compute_accuracy(logits_tuple, labels: torch.Tensor):
 # ---------------------------------------------------------------------------
 # Training / validation loops
 # ---------------------------------------------------------------------------
+
 
 def train_epoch(model, loader, criterion, optimizer, device, epoch):
     model.train()
@@ -147,6 +149,7 @@ def validate_epoch(model, loader, criterion, device, epoch):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main(args):
     logger.info("=" * 70)
     logger.info("TMJ POSITION CLASSIFIER TRAINING")
@@ -197,7 +200,9 @@ def main(args):
     logger.info("Train batches: %d  |  Val batches: %d", len(train_loader), len(val_loader))
 
     if len(train_loader) == 0:
-        logger.error("Train loader is empty — check that manifest and labels have matching patients.")
+        logger.error(
+            "Train loader is empty — check that manifest and labels have matching patients."
+        )
         sys.exit(1)
     if len(val_loader) == 0:
         logger.error(
@@ -236,15 +241,21 @@ def main(args):
         logger.info("Epoch %d/%d", epoch, args.epochs)
         logger.info(
             "  Train  loss=%.4f  acc=%.3f  [sr=%.3f sl=%.3f fr=%.3f fl=%.3f]",
-            train_m["loss"], train_m["mean_accuracy"],
-            train_m["acc_sag_right"], train_m["acc_sag_left"],
-            train_m["acc_fr_right"],  train_m["acc_fr_left"],
+            train_m["loss"],
+            train_m["mean_accuracy"],
+            train_m["acc_sag_right"],
+            train_m["acc_sag_left"],
+            train_m["acc_fr_right"],
+            train_m["acc_fr_left"],
         )
         logger.info(
             "  Val    loss=%.4f  acc=%.3f  [sr=%.3f sl=%.3f fr=%.3f fl=%.3f]",
-            val_m["loss"], val_m["mean_accuracy"],
-            val_m["acc_sag_right"], val_m["acc_sag_left"],
-            val_m["acc_fr_right"],  val_m["acc_fr_left"],
+            val_m["loss"],
+            val_m["mean_accuracy"],
+            val_m["acc_sag_right"],
+            val_m["acc_sag_left"],
+            val_m["acc_fr_right"],
+            val_m["acc_fr_left"],
         )
         logger.info("  LR: %.6f", current_lr)
 
@@ -304,9 +315,7 @@ def main(args):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Train TMJ Position Classifier (issue #67)"
-    )
+    parser = argparse.ArgumentParser(description="Train TMJ Position Classifier (issue #67)")
 
     # Data
     parser.add_argument(

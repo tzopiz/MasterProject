@@ -25,7 +25,6 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-
 CROPS_DIR = Path(__file__).parent.parent / "data" / "detector_crops"
 
 
@@ -42,7 +41,7 @@ def normalize(vol: np.ndarray) -> np.ndarray:
 
 
 def show_study(study_id: str, crops_dir: Path, save_dir: Path | None = None):
-    left_path  = crops_dir / study_id / f"{study_id}_left.nii.gz"
+    left_path = crops_dir / study_id / f"{study_id}_left.nii.gz"
     right_path = crops_dir / study_id / f"{study_id}_right.nii.gz"
 
     missing = [p for p in (left_path, right_path) if not p.exists()]
@@ -50,7 +49,7 @@ def show_study(study_id: str, crops_dir: Path, save_dir: Path | None = None):
         print(f"[{study_id}] Не найдены: {[str(m) for m in missing]}")
         return
 
-    left  = normalize(load_crop(left_path))
+    left = normalize(load_crop(left_path))
     right = normalize(load_crop(right_path))
 
     D, H, W = left.shape
@@ -60,9 +59,9 @@ def show_study(study_id: str, crops_dir: Path, save_dir: Path | None = None):
     fig.suptitle(study_id, fontsize=14, fontweight="bold")
 
     slices = [
-        ("Axial",    left[mid[0], :, :],  right[mid[0], :, :]),
-        ("Coronal",  left[:, mid[1], :],  right[:, mid[1], :]),
-        ("Sagittal", left[:, :, mid[2]],  right[:, :, mid[2]]),
+        ("Axial", left[mid[0], :, :], right[mid[0], :, :]),
+        ("Coronal", left[:, mid[1], :], right[:, mid[1], :]),
+        ("Sagittal", left[:, :, mid[2]], right[:, :, mid[2]]),
     ]
 
     for col, (plane, l_sl, r_sl) in enumerate(slices):
@@ -72,8 +71,8 @@ def show_study(study_id: str, crops_dir: Path, save_dir: Path | None = None):
             ax.set_title(f"{side} — {plane}", fontsize=10)
             # Crosshair на центре
             ch, cw = sl.shape[0] // 2, sl.shape[1] // 2
-            ax.axhline(ch, color="red",  alpha=0.4, linewidth=0.8)
-            ax.axvline(cw, color="red",  alpha=0.4, linewidth=0.8)
+            ax.axhline(ch, color="red", alpha=0.4, linewidth=0.8)
+            ax.axvline(cw, color="red", alpha=0.4, linewidth=0.8)
             ax.axis("off")
 
     plt.tight_layout()
@@ -91,18 +90,22 @@ def show_study(study_id: str, crops_dir: Path, save_dir: Path | None = None):
 
 def main():
     parser = argparse.ArgumentParser(description="Visualize TMJ NIfTI crops")
-    parser.add_argument("--crops-dir", default=str(CROPS_DIR),
-                        help="Папка с кропами (по умолчанию data/detector_crops)")
-    parser.add_argument("--study", default=None,
-                        help="study_id для показа (иначе случайная выборка)")
-    parser.add_argument("-n", type=int, default=5,
-                        help="Количество случайных исследований (default: 5)")
-    parser.add_argument("--save-dir", default=None,
-                        help="Сохранить PNG в папку вместо показа")
+    parser.add_argument(
+        "--crops-dir",
+        default=str(CROPS_DIR),
+        help="Папка с кропами (по умолчанию data/detector_crops)",
+    )
+    parser.add_argument(
+        "--study", default=None, help="study_id для показа (иначе случайная выборка)"
+    )
+    parser.add_argument(
+        "-n", type=int, default=5, help="Количество случайных исследований (default: 5)"
+    )
+    parser.add_argument("--save-dir", default=None, help="Сохранить PNG в папку вместо показа")
     args = parser.parse_args()
 
     crops_dir = Path(args.crops_dir)
-    save_dir  = Path(args.save_dir) if args.save_dir else None
+    save_dir = Path(args.save_dir) if args.save_dir else None
 
     if not crops_dir.exists():
         print(f"Папка не найдена: {crops_dir}")
@@ -110,7 +113,8 @@ def main():
 
     # Собрать доступные исследования (есть оба кропа)
     studies = sorted(
-        d.name for d in crops_dir.iterdir()
+        d.name
+        for d in crops_dir.iterdir()
         if d.is_dir()
         and (d / f"{d.name}_left.nii.gz").exists()
         and (d / f"{d.name}_right.nii.gz").exists()

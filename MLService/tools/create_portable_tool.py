@@ -2,20 +2,21 @@ import os
 import shutil
 from pathlib import Path
 
+
 def create_portable_package():
     # 1. Setup paths
     root_dir = Path(__file__).parent.parent
-    source_tool = root_dir / 'tools' / 'roi_annotation_tool.py'
-    
-    dist_dir = root_dir / 'TMJ_Annotator_Portable'
+    source_tool = root_dir / "tools" / "roi_annotation_tool.py"
+
+    dist_dir = root_dir / "TMJ_Annotator_Portable"
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
     dist_dir.mkdir()
-    
+
     print(f"📦 Creating portable package in: {dist_dir}")
 
     # 2. Copy Python Tool
-    shutil.copy2(source_tool, dist_dir / 'roi_annotation_tool.py')
+    shutil.copy2(source_tool, dist_dir / "roi_annotation_tool.py")
     print("✅ Copied roi_annotation_tool.py")
 
     # 3. Create requirements.txt (Minimal)
@@ -23,7 +24,7 @@ def create_portable_package():
 matplotlib
 pydicom
 """
-    with open(dist_dir / 'requirements.txt', 'w') as f:
+    with open(dist_dir / "requirements.txt", "w") as f:
         f.write(reqs)
     print("✅ Created requirements.txt")
 
@@ -63,7 +64,7 @@ pydicom
 - На компьютере должен быть установлен **Python** (версии 3.8 или новее).
 - Программа сама создаст виртуальное окружение и установит библиотеки при первом запуске.
 """
-    with open(dist_dir / 'README.txt', 'w') as f:
+    with open(dist_dir / "README.txt", "w") as f:
         f.write(readme)
     print("✅ Created README.txt")
 
@@ -172,14 +173,14 @@ echo "Results saved in: $OUTPUT_DIR"
 echo "Press any key to exit..."
 read -n 1
 """
-    run_mac = dist_dir / 'run_mac.command'
-    with open(run_mac, 'w') as f:
+    run_mac = dist_dir / "run_mac.command"
+    with open(run_mac, "w") as f:
         f.write(runner_sh)
     os.chmod(run_mac, 0o755)
     print("✅ Created run_mac.command")
-    
-    run_linux = dist_dir / 'run_linux.sh'
-    with open(run_linux, 'w') as f:
+
+    run_linux = dist_dir / "run_linux.sh"
+    with open(run_linux, "w") as f:
         f.write(runner_sh)
     os.chmod(run_linux, 0o755)
     print("✅ Created run_linux.sh")
@@ -271,13 +272,14 @@ echo Results saved in: "%OUTPUT_DIR%"
 echo Press any key to exit...
 pause >nul
 """
-    run_bat = dist_dir / 'run_windows.bat'
-    with open(run_bat, 'w') as f:
+    run_bat = dist_dir / "run_windows.bat"
+    with open(run_bat, "w") as f:
         f.write(runner_bat)
     print("✅ Created run_windows.bat")
-    
+
     print(f"\n🚀 SUCCESS! Folder '{dist_dir}' is ready.")
     print("It supports macOS, Linux, and Windows.")
+
 
 if __name__ == "__main__":
     create_portable_package()

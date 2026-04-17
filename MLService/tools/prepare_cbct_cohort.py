@@ -72,14 +72,18 @@ def main() -> int:
         action="store_true",
         help="Не передавать --download-below-threshold (пропуск низкой уверенности)",
     )
-    ap.add_argument("--overwrite-download", action="store_true", help="Передать --overwrite загрузчику")
+    ap.add_argument(
+        "--overwrite-download", action="store_true", help="Передать --overwrite загрузчику"
+    )
     ap.add_argument("--dry-run-download", action="store_true", help="Загрузчик только dry-run")
     ap.add_argument(
         "--force-extract",
         action="store_true",
         help="Удалить папку назначения и распаковать заново, если она уже есть",
     )
-    ap.add_argument("--dry-run-clean", action="store_true", help="Только показать, какие файлы удалили бы")
+    ap.add_argument(
+        "--dry-run-clean", action="store_true", help="Только показать, какие файлы удалили бы"
+    )
     ap.add_argument(
         "--report",
         type=Path,
@@ -130,7 +134,9 @@ def main() -> int:
         print(f"В {zips_dir} нет .zip файлов.", file=sys.stderr)
         out_path = args.report or (extract_dir / "prepare_report.json")
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        out_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         return 1
 
     extract_report: list[dict[str, Any]] = []

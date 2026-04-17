@@ -138,7 +138,11 @@ def main() -> int:
     print("\nГотово. Датасет:", (ml_root / args.dataset_out).resolve(), flush=True)
     print("Manifest:", (ml_root / args.dataset_out / "manifest.json").resolve(), flush=True)
     if not args.no_anonymize:
-        print("PHI linkage (не публиковать):", (ml_root / args.dataset_out / "manifest_private.json").resolve(), flush=True)
+        print(
+            "PHI linkage (не публиковать):",
+            (ml_root / args.dataset_out / "manifest_private.json").resolve(),
+            flush=True,
+        )
     return 0
 
 

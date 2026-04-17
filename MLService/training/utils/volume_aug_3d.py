@@ -46,7 +46,9 @@ def _random_small_rotations(volume: np.ndarray, max_degrees: float, plane_p: flo
     return out
 
 
-def _random_intensity(volume: np.ndarray, scale_range: Tuple[float, float], shift_range: Tuple[float, float]) -> np.ndarray:
+def _random_intensity(
+    volume: np.ndarray, scale_range: Tuple[float, float], shift_range: Tuple[float, float]
+) -> np.ndarray:
     scale = random.uniform(scale_range[0], scale_range[1])
     shift = random.uniform(shift_range[0], shift_range[1])
     return np.clip(volume * scale + shift, 0.0, 1.0).astype(np.float32, copy=False)

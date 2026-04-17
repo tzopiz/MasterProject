@@ -26,7 +26,6 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-
 JUPYTER_HOME = Path("/home/jupyter")
 DATASPHERE_DATASET_TMJ = JUPYTER_HOME / "datasets" / "tmj"
 FILESTORE = JUPYTER_HOME / "filestore"

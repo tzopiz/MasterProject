@@ -16,8 +16,8 @@ Split is performed strictly by patient_name to avoid data leakage
 """
 
 import json
-import random
 import logging
+import random
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Code mapping helpers
 # ---------------------------------------------------------------------------
+
 
 def map_sagittal(code: int) -> int:
     """Sagittal code 1-3 → class index 0-2."""
@@ -47,6 +48,7 @@ def map_frontal(code: int) -> int:
 # ---------------------------------------------------------------------------
 # Index builder
 # ---------------------------------------------------------------------------
+
 
 def build_index(
     manifest_path: str = "data/dataset_cbct_public/manifest_private.json",
@@ -98,7 +100,8 @@ def build_index(
         if patient_name not in label_by_name:
             logger.debug(
                 "No labels for patient %r (study %s) — skipped",
-                patient_name, study["study_id"],
+                patient_name,
+                study["study_id"],
             )
             skipped += 1
             continue
@@ -106,19 +109,22 @@ def build_index(
         lbl = label_by_name[patient_name]
         dicom_dir = dataset_root / study["study_id"]
 
-        records.append({
-            "study_id": study["study_id"],
-            "dicom_dir": str(dicom_dir),
-            "patient_name": patient_name,
-            "sag_right": map_sagittal(lbl["sagittal"]["right"]),
-            "sag_left":  map_sagittal(lbl["sagittal"]["left"]),
-            "fr_right":  map_frontal(lbl["frontal"]["right"]),
-            "fr_left":   map_frontal(lbl["frontal"]["left"]),
-        })
+        records.append(
+            {
+                "study_id": study["study_id"],
+                "dicom_dir": str(dicom_dir),
+                "patient_name": patient_name,
+                "sag_right": map_sagittal(lbl["sagittal"]["right"]),
+                "sag_left": map_sagittal(lbl["sagittal"]["left"]),
+                "fr_right": map_frontal(lbl["frontal"]["right"]),
+                "fr_left": map_frontal(lbl["frontal"]["left"]),
+            }
+        )
 
     logger.info(
         "build_index: %d records matched, %d studies skipped (no label match)",
-        len(records), skipped,
+        len(records),
+        skipped,
     )
 
     if cache_path is not None:
@@ -132,6 +138,7 @@ def build_index(
 # ---------------------------------------------------------------------------
 # Train / val split by patient
 # ---------------------------------------------------------------------------
+
 
 def split_by_patient(
     records: List[Dict],
@@ -173,8 +180,10 @@ def split_by_patient(
 
     logger.info(
         "split_by_patient: train=%d records (%d patients) / val=%d records (%d patients)",
-        len(train_records), len(train_patients),
-        len(val_records), len(val_patients),
+        len(train_records),
+        len(train_patients),
+        len(val_records),
+        len(val_patients),
     )
     return train_records, val_records
 
@@ -182,6 +191,7 @@ def split_by_patient(
 # ---------------------------------------------------------------------------
 # Binarize labels
 # ---------------------------------------------------------------------------
+
 
 def binarize_labels(records: List[Dict], crop_dir: str) -> List[Dict]:
     """
@@ -215,16 +225,20 @@ def binarize_labels(records: List[Dict], crop_dir: str) -> List[Dict]:
             sag_val = rec[f"sag_{side}"]
             fr_val = rec[f"fr_{side}"]
 
-            binary_records.append({
-                "study_id": study_id,
-                "patient_name": patient_name,
-                "side": side,
-                "sag": 0 if sag_val == 0 else 1,
-                "fr": 0 if fr_val == 0 else 1,
-                "crop_path": str(crop_dir / study_id / f"{study_id}_{side}.nii.gz"),
-            })
+            binary_records.append(
+                {
+                    "study_id": study_id,
+                    "patient_name": patient_name,
+                    "side": side,
+                    "sag": 0 if sag_val == 0 else 1,
+                    "fr": 0 if fr_val == 0 else 1,
+                    "crop_path": str(crop_dir / study_id / f"{study_id}_{side}.nii.gz"),
+                }
+            )
 
-    logger.info("binarize_labels: %d records → %d binary side-records", len(records), len(binary_records))
+    logger.info(
+        "binarize_labels: %d records → %d binary side-records", len(records), len(binary_records)
+    )
     return binary_records
 
 

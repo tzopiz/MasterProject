@@ -50,7 +50,11 @@ def main() -> int:
         action="store_true",
         help="Удалить существующую папку пациента и распаковать заново",
     )
-    ap.add_argument("--dry-run", action="store_true", help="Не удалять файлы и не писать при распаковке — только план")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Не удалять файлы и не писать при распаковке — только план",
+    )
     ap.add_argument(
         "--report",
         type=Path,
@@ -131,14 +135,20 @@ def main() -> int:
     report["summary"] = {
         "zip_count": len(zips),
         "extract_ok": sum(1 for p in report["patients"] if p.get("extract") == "ok"),
-        "files_removed": sum(p.get("cleanup", {}).get("files_removed", 0) for p in report["patients"]),
-        "empty_dirs_removed": sum(p.get("cleanup", {}).get("empty_dirs_removed", 0) for p in report["patients"]),
+        "files_removed": sum(
+            p.get("cleanup", {}).get("files_removed", 0) for p in report["patients"]
+        ),
+        "empty_dirs_removed": sum(
+            p.get("cleanup", {}).get("empty_dirs_removed", 0) for p in report["patients"]
+        ),
     }
 
     rep_path = args.report or (out_root / "dataset_build_report.json")
     rep_path.parent.mkdir(parents=True, exist_ok=True)
     if not args.dry_run or rep_path:
-        rep_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        rep_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
     print(f"\nОтчёт: {rep_path}", flush=True)
     return 0
 

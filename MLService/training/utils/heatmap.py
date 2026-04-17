@@ -1,10 +1,13 @@
 """
 3D Gaussian heatmap utilities for TMJ keypoint detection.
 """
+
 from __future__ import annotations
+
+from typing import Tuple
+
 import numpy as np
 import torch
-from typing import Tuple
 
 
 def make_heatmap(
@@ -35,11 +38,9 @@ def make_heatmap(
     x = np.arange(W, dtype=np.float32)
 
     dist_sq = (
-        (z[:, None, None] - cz) ** 2
-        + (y[None, :, None] - cy) ** 2
-        + (x[None, None, :] - cx) ** 2
+        (z[:, None, None] - cz) ** 2 + (y[None, :, None] - cy) ** 2 + (x[None, None, :] - cx) ** 2
     )
-    heatmap = np.exp(-dist_sq / (2.0 * sigma ** 2)).astype(np.float32)
+    heatmap = np.exp(-dist_sq / (2.0 * sigma**2)).astype(np.float32)
     return heatmap  # peak = 1.0 at center
 
 

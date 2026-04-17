@@ -55,6 +55,7 @@ HEAD_NAMES = ["sag", "fr"]
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def compute_class_weights(loader) -> dict:
     """Count class distribution across the training set for alpha estimation."""
     counts = {name: {0: 0, 1: 0} for name in HEAD_NAMES}
@@ -70,8 +71,10 @@ def compute_class_weights(loader) -> dict:
         logger.info(
             "Class distribution [%s]: 0=%d (%.1f%%)  1=%d (%.1f%%)  → alpha=%.3f",
             name,
-            counts[name][0], 100 * counts[name][0] / max(total, 1),
-            counts[name][1], 100 * counts[name][1] / max(total, 1),
+            counts[name][0],
+            100 * counts[name][0] / max(total, 1),
+            counts[name][1],
+            100 * counts[name][1] / max(total, 1),
             alphas[name],
         )
     return alphas
@@ -97,6 +100,7 @@ def compute_metrics(sag_logits, fr_logits, labels, thresholds=(0.5, 0.5)):
 # Train / val loops
 # ---------------------------------------------------------------------------
 
+
 def train_epoch(model, loader, criteria, optimizer, device, epoch):
     model.train()
     running_loss = 0.0
@@ -110,9 +114,8 @@ def train_epoch(model, loader, criteria, optimizer, device, epoch):
         optimizer.zero_grad()
         sag_logit, fr_logit = model(volumes)
 
-        loss = (
-            criteria["sag"](sag_logit, labels[:, 0].float())
-            + criteria["fr"](fr_logit, labels[:, 1].float())
+        loss = criteria["sag"](sag_logit, labels[:, 0].float()) + criteria["fr"](
+            fr_logit, labels[:, 1].float()
         )
         loss.backward()
         optimizer.step()
@@ -142,9 +145,8 @@ def validate_epoch(model, loader, criteria, device, epoch):
             volumes = volumes.to(device)
             labels = labels.to(device)
             sag_logit, fr_logit = model(volumes)
-            loss = (
-                criteria["sag"](sag_logit, labels[:, 0].float())
-                + criteria["fr"](fr_logit, labels[:, 1].float())
+            loss = criteria["sag"](sag_logit, labels[:, 0].float()) + criteria["fr"](
+                fr_logit, labels[:, 1].float()
             )
             m = compute_metrics(sag_logit, fr_logit, labels)
             m["loss"] = loss.item()
@@ -162,6 +164,7 @@ def validate_epoch(model, loader, criteria, device, epoch):
 # ---------------------------------------------------------------------------
 # Threshold calibration
 # ---------------------------------------------------------------------------
+
 
 def calibrate_thresholds(model, val_loader, device) -> dict:
     """
@@ -206,7 +209,10 @@ def calibrate_thresholds(model, val_loader, device) -> dict:
 
         logger.info(
             "[%s] AUC=%.3f  Youden J best thresh=%.3f  acc@thresh=%.3f",
-            name, auc if not np.isnan(auc) else float("nan"), best_thresh, acc,
+            name,
+            auc if not np.isnan(auc) else float("nan"),
+            best_thresh,
+            acc,
         )
 
     return results
@@ -215,6 +221,7 @@ def calibrate_thresholds(model, val_loader, device) -> dict:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main(args):
     logger.info("=" * 70)
@@ -280,10 +287,7 @@ def main(args):
     logger.info("Model parameters: %.2fM", n_params / 1e6)
 
     # Loss (one per head, with head-specific alpha)
-    criteria = {
-        name: BinaryFocalLoss(gamma=args.gamma, alpha=alphas[name])
-        for name in HEAD_NAMES
-    }
+    criteria = {name: BinaryFocalLoss(gamma=args.gamma, alpha=alphas[name]) for name in HEAD_NAMES}
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -309,13 +313,17 @@ def main(args):
         logger.info("Epoch %d/%d", epoch, args.epochs)
         logger.info(
             "  Train  loss=%.4f  acc=%.3f  [sag=%.3f  fr=%.3f]",
-            train_m["loss"], train_m["mean_accuracy"],
-            train_m["acc_sag"], train_m["acc_fr"],
+            train_m["loss"],
+            train_m["mean_accuracy"],
+            train_m["acc_sag"],
+            train_m["acc_fr"],
         )
         logger.info(
             "  Val    loss=%.4f  acc=%.3f  [sag=%.3f  fr=%.3f]",
-            val_m["loss"], val_m["mean_accuracy"],
-            val_m["acc_sag"], val_m["acc_fr"],
+            val_m["loss"],
+            val_m["mean_accuracy"],
+            val_m["acc_sag"],
+            val_m["acc_fr"],
         )
         logger.info("  LR: %.6f", current_lr)
 
@@ -379,11 +387,13 @@ if __name__ == "__main__":
     )
 
     # Data
-    parser.add_argument("--crop-dir", required=True,
-                        help="Root of detector NIfTI crops (data/detector_crops)")
+    parser.add_argument(
+        "--crop-dir", required=True, help="Root of detector NIfTI crops (data/detector_crops)"
+    )
     parser.add_argument("--labels-json", default="data/tmj_position_labels.json")
-    parser.add_argument("--manifest-private",
-                        default="data/dataset_cbct_public/manifest_private.json")
+    parser.add_argument(
+        "--manifest-private", default="data/dataset_cbct_public/manifest_private.json"
+    )
     parser.add_argument("--dataset-root", default="data/dataset_cbct_public")
     parser.add_argument("--split-ratio", type=float, default=0.8)
 
@@ -395,12 +405,14 @@ if __name__ == "__main__":
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--lr-patience", type=int, default=10)
     parser.add_argument("--early-stopping", type=int, default=30)
-    parser.add_argument("--gamma", type=float, default=2.0,
-                        help="Focal loss gamma parameter (default 2.0)")
+    parser.add_argument(
+        "--gamma", type=float, default=2.0, help="Focal loss gamma parameter (default 2.0)"
+    )
 
     # Hardware
-    parser.add_argument("--device", default=None,
-                        help="Force device: cpu / cuda / mps (auto-detected if omitted)")
+    parser.add_argument(
+        "--device", default=None, help="Force device: cpu / cuda / mps (auto-detected if omitted)"
+    )
 
     # Output
     parser.add_argument("--output-dir", default="experiments")

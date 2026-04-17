@@ -49,12 +49,15 @@ def list_public_zips(public_url: str, limit: int = 1000) -> list[dict[str, Any]]
     with urllib.request.urlopen(req, timeout=120) as r:
         data = json.load(r)
     items = data.get("_embedded", {}).get("items", [])
-    return [i for i in items if i.get("type") == "file" and i.get("name", "").lower().endswith(".zip")]
+    return [
+        i for i in items if i.get("type") == "file" and i.get("name", "").lower().endswith(".zip")
+    ]
 
 
 def get_download_href(public_url: str, remote_path: str) -> str:
-    api = "https://cloud-api.yandex.net/v1/disk/public/resources/download?" + urllib.parse.urlencode(
-        {"public_key": public_url, "path": remote_path}
+    api = (
+        "https://cloud-api.yandex.net/v1/disk/public/resources/download?"
+        + urllib.parse.urlencode({"public_key": public_url, "path": remote_path})
     )
     req = urllib.request.Request(api, headers={"Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -90,14 +93,21 @@ def best_zip_match(name_raw: str, zips: list[dict[str, Any]]) -> tuple[str | Non
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--labels", type=Path, required=True, help="JSON от parse_tmj_position_labels_docx.py")
+    ap.add_argument(
+        "--labels", type=Path, required=True, help="JSON от parse_tmj_position_labels_docx.py"
+    )
     ap.add_argument(
         "--public-url",
         default="https://disk.360.yandex.ru/d/iZwyDWpG2A9Fiw",
         help="Публичная ссылка на папку Яндекс.Диска",
     )
     ap.add_argument("--output-dir", type=Path, required=True, help="Локальная папка для .zip")
-    ap.add_argument("--min-score", type=float, default=0.82, help="Мин. token_sort_ratio для «уверенной» загрузки")
+    ap.add_argument(
+        "--min-score",
+        type=float,
+        default=0.82,
+        help="Мин. token_sort_ratio для «уверенной» загрузки",
+    )
     ap.add_argument(
         "--download-below-threshold",
         action="store_true",
@@ -158,7 +168,9 @@ def main() -> int:
             "score": round(score, 4),
         }
         if match_name:
-            entry["remote_size"] = next((i.get("size") for i in zips if i["name"] == match_name), None)
+            entry["remote_size"] = next(
+                (i.get("size") for i in zips if i["name"] == match_name), None
+            )
 
         low_conf = match_name is not None and score < args.min_score
         if match_name is None:
@@ -175,7 +187,10 @@ def main() -> int:
             continue
         if low_conf:
             entry["parse_warning"] = "score_below_min_threshold"
-            print(f"LOW {score:.3f}  #{num} {name_raw!r} -> {match_name!r} (download-below-threshold)", flush=True)
+            print(
+                f"LOW {score:.3f}  #{num} {name_raw!r} -> {match_name!r} (download-below-threshold)",
+                flush=True,
+            )
 
         dest = args.output_dir / match_name
         entry["local_path"] = str(dest.resolve())
@@ -209,7 +224,13 @@ def main() -> int:
                 f"OK {score:.3f}  #{num} {match_name}  {nbytes / (1024**2):.1f} MB  {sec:.0f}s  ({mb_s:.1f} MB/s)",
                 flush=True,
             )
-        except (urllib.error.URLError, urllib.error.HTTPError, OSError, TimeoutError, KeyError) as e:
+        except (
+            urllib.error.URLError,
+            urllib.error.HTTPError,
+            OSError,
+            TimeoutError,
+            KeyError,
+        ) as e:
             entry["status"] = "download_failed"
             entry["error"] = str(e)
             manifest["patients"].append(entry)
@@ -218,7 +239,9 @@ def main() -> int:
     mpath = args.manifest_out or (args.output_dir / "download_manifest.json")
     if not args.dry_run or mpath:
         mpath.parent.mkdir(parents=True, exist_ok=True)
-        mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        mpath.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         print(f"\nManifest: {mpath}", flush=True)
 
     failed = sum(1 for x in manifest["patients"] if x.get("status") == "download_failed")

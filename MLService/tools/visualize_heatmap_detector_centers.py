@@ -17,6 +17,7 @@ Usage:
         --right-model models/checkpoints/right_detector.pth \\
         --output      centers_preview.png
 """
+
 from __future__ import annotations
 
 import argparse

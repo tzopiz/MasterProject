@@ -26,9 +26,8 @@ import random
 import sys
 from pathlib import Path
 
-import matplotlib
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 import pydicom
@@ -37,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 def load_dicom_volume(dicom_dir: Path) -> np.ndarray:
     files = sorted(dicom_dir.glob("*.dcm"))
@@ -50,9 +50,11 @@ def load_dicom_volume(dicom_dir: Path) -> np.ndarray:
     planes = []
     for s in slices:
         arr = s.pixel_array.astype(np.float32)
-        arr = arr * float(getattr(s, "RescaleSlope", 1.0)) + float(getattr(s, "RescaleIntercept", 0.0))
+        arr = arr * float(getattr(s, "RescaleSlope", 1.0)) + float(
+            getattr(s, "RescaleIntercept", 0.0)
+        )
         planes.append(arr)
-    return np.stack(planes, axis=0)   # (D, H, W), HU
+    return np.stack(planes, axis=0)  # (D, H, W), HU
 
 
 def normalize_display(vol: np.ndarray, p_lo: float = 0.5, p_hi: float = 99.5) -> np.ndarray:
@@ -66,15 +68,20 @@ def load_nifti(path: Path) -> np.ndarray:
     p2, p98 = np.percentile(vol, [2, 98])
     vol = np.clip(vol, p2, p98)
     denom = p98 - p2
-    return ((vol - p2) / denom if denom > 0 else np.zeros_like(vol))
+    return (vol - p2) / denom if denom > 0 else np.zeros_like(vol)
 
 
 def draw_box_on_slice(ax, center_2d, half=64, color="lime", lw=1.5):
     """Draw crop bounding box on a 2D slice."""
     cy, cx = center_2d
     rect = mpatches.Rectangle(
-        (cx - half, cy - half), 2 * half, 2 * half,
-        linewidth=lw, edgecolor=color, facecolor="none", linestyle="--"
+        (cx - half, cy - half),
+        2 * half,
+        2 * half,
+        linewidth=lw,
+        edgecolor=color,
+        facecolor="none",
+        linestyle="--",
     )
     ax.add_patch(rect)
     ax.plot(cx, cy, "+", color=color, markersize=10, markeredgewidth=1.5)
@@ -101,9 +108,9 @@ def show_slices_with_box(
     D, H, W = vol_norm.shape
 
     slices = [
-        (vol_norm[z, :, :],   (y, x),    f"{title_prefix} Axial z={z}"),
-        (vol_norm[:, y, :],   (z, x),    f"{title_prefix} Coronal y={y}"),
-        (vol_norm[:, :, x],   (z, y),    f"{title_prefix} Sagittal x={x}"),
+        (vol_norm[z, :, :], (y, x), f"{title_prefix} Axial z={z}"),
+        (vol_norm[:, y, :], (z, x), f"{title_prefix} Coronal y={y}"),
+        (vol_norm[:, :, x], (z, y), f"{title_prefix} Sagittal x={x}"),
     ]
 
     for ax, (sl, c2d, title) in zip(axes_row, slices):
@@ -134,6 +141,7 @@ def show_crop_slices(axes_row, crop, title_prefix=""):
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
+
 def visualize_study(
     study_id: str,
     dataset_root: Path,
@@ -141,19 +149,21 @@ def visualize_study(
     save_path: Path | None = None,
     crop_size: int = 128,
 ):
-    study_dir  = dataset_root / study_id
-    meta_path  = crops_dir / study_id / f"{study_id}_metadata.json"
-    left_path  = crops_dir / study_id / f"{study_id}_left.nii.gz"
+    study_dir = dataset_root / study_id
+    meta_path = crops_dir / study_id / f"{study_id}_metadata.json"
+    left_path = crops_dir / study_id / f"{study_id}_left.nii.gz"
     right_path = crops_dir / study_id / f"{study_id}_right.nii.gz"
 
     # Load metadata (detector predictions)
     if not meta_path.exists():
-        raise FileNotFoundError(f"Metadata not found: {meta_path}\nRun auto_crop_from_detector.py first.")
+        raise FileNotFoundError(
+            f"Metadata not found: {meta_path}\nRun auto_crop_from_detector.py first."
+        )
 
     with open(meta_path) as f:
         meta = json.load(f)
 
-    left_zyx  = np.array(meta["predicted_coords"]["left"])
+    left_zyx = np.array(meta["predicted_coords"]["left"])
     right_zyx = np.array(meta["predicted_coords"]["right"])
 
     print(f"Study: {study_id}")
@@ -163,12 +173,12 @@ def visualize_study(
 
     # Load full CBCT
     print("Loading DICOM volume...")
-    volume    = load_dicom_volume(study_dir)
-    vol_norm  = normalize_display(volume)
+    volume = load_dicom_volume(study_dir)
+    vol_norm = normalize_display(volume)
     print(f"Shape: {volume.shape}  HU range: [{volume.min():.0f}, {volume.max():.0f}]")
 
     # Load crops
-    left_crop  = load_nifti(left_path)
+    left_crop = load_nifti(left_path)
     right_crop = load_nifti(right_path)
 
     half = crop_size // 2
@@ -182,17 +192,24 @@ def visualize_study(
 
     fig.suptitle(
         f"TMJ Detection Pipeline — {study_id}",
-        fontsize=13, fontweight="bold", color="white", y=0.995
+        fontsize=13,
+        fontweight="bold",
+        color="white",
+        y=0.995,
     )
 
     # Row 0: full volume with LEFT joint
-    show_slices_with_box(axes[0], vol_norm, left_zyx,  half=half, color="#22c55e", title_prefix="Full → LEFT")
+    show_slices_with_box(
+        axes[0], vol_norm, left_zyx, half=half, color="#22c55e", title_prefix="Full → LEFT"
+    )
 
     # Row 1: full volume with RIGHT joint
-    show_slices_with_box(axes[1], vol_norm, right_zyx, half=half, color="#f97316", title_prefix="Full → RIGHT")
+    show_slices_with_box(
+        axes[1], vol_norm, right_zyx, half=half, color="#f97316", title_prefix="Full → RIGHT"
+    )
 
     # Row 2: LEFT crop
-    show_crop_slices(axes[2], left_crop,  title_prefix="Crop LEFT")
+    show_crop_slices(axes[2], left_crop, title_prefix="Crop LEFT")
 
     # Row 3: RIGHT crop
     show_crop_slices(axes[3], right_crop, title_prefix="Crop RIGHT")
@@ -205,19 +222,25 @@ def visualize_study(
     leg = [
         mpatches.Patch(color="#22c55e", label="Left TMJ (detector)"),
         mpatches.Patch(color="#f97316", label="Right TMJ (detector)"),
-        mpatches.Patch(color="lime",    label="Crosshair (crop centre)"),
+        mpatches.Patch(color="lime", label="Crosshair (crop centre)"),
     ]
-    fig.legend(handles=leg, loc="lower center", ncol=3, fontsize=9,
-               facecolor="#1e293b", edgecolor="#334155", labelcolor="white",
-               bbox_to_anchor=(0.5, 0.0))
+    fig.legend(
+        handles=leg,
+        loc="lower center",
+        ncol=3,
+        fontsize=9,
+        facecolor="#1e293b",
+        edgecolor="#334155",
+        labelcolor="white",
+        bbox_to_anchor=(0.5, 0.0),
+    )
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.995])
 
     if save_path:
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_path, dpi=150, bbox_inches="tight",
-                    facecolor=fig.get_facecolor())
+        fig.savefig(save_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
         print(f"Saved: {save_path}")
         plt.close(fig)
     else:
@@ -227,28 +250,32 @@ def visualize_study(
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="Visualize TMJ detection pipeline")
-    parser.add_argument("--study",       default=None,
-                        help="study_id (e.g. study_0001). Random if omitted.")
-    parser.add_argument("--dataset-root", default="data/dataset_cbct_public",
-                        help="Root with study_* DICOM folders")
-    parser.add_argument("--crops-dir",   default="data/detector_crops",
-                        help="Root with NIfTI crops + metadata JSON")
-    parser.add_argument("--crop-size",   type=int, default=128)
-    parser.add_argument("--save",        default=None,
-                        help="Save PNG to this path instead of showing")
+    parser.add_argument(
+        "--study", default=None, help="study_id (e.g. study_0001). Random if omitted."
+    )
+    parser.add_argument(
+        "--dataset-root", default="data/dataset_cbct_public", help="Root with study_* DICOM folders"
+    )
+    parser.add_argument(
+        "--crops-dir", default="data/detector_crops", help="Root with NIfTI crops + metadata JSON"
+    )
+    parser.add_argument("--crop-size", type=int, default=128)
+    parser.add_argument("--save", default=None, help="Save PNG to this path instead of showing")
     args = parser.parse_args()
 
     dataset_root = Path(args.dataset_root)
-    crops_dir    = Path(args.crops_dir)
+    crops_dir = Path(args.crops_dir)
 
     # Pick study
     if args.study:
         study_id = args.study
     else:
         candidates = [
-            d.name for d in crops_dir.iterdir()
+            d.name
+            for d in crops_dir.iterdir()
             if d.is_dir()
             and (d / f"{d.name}_left.nii.gz").exists()
             and (d / f"{d.name}_metadata.json").exists()
@@ -261,11 +288,11 @@ def main():
         print(f"Picked random study: {study_id}")
 
     visualize_study(
-        study_id    = study_id,
-        dataset_root = dataset_root,
-        crops_dir   = crops_dir,
-        save_path   = args.save,
-        crop_size   = args.crop_size,
+        study_id=study_id,
+        dataset_root=dataset_root,
+        crops_dir=crops_dir,
+        save_path=args.save,
+        crop_size=args.crop_size,
     )
 
 
