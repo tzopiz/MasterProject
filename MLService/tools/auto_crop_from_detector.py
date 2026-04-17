@@ -80,18 +80,21 @@ class TMJHeatmapDetector(nn.Module):
         self.encoders = nn.ModuleList()
         prev = 1
         for f in features:
-            self.encoders.append(_EncoderBlock(prev, f)); prev = f
+            self.encoders.append(_EncoderBlock(prev, f))
+            prev = f
         self.bottleneck = _double_conv(features[-1], features[-1] * 2)
         prev = features[-1] * 2
         self.decoders = nn.ModuleList()
         for f in reversed(features):
-            self.decoders.append(_DecoderBlock(prev, f, f)); prev = f
+            self.decoders.append(_DecoderBlock(prev, f, f))
+            prev = f
         self.head = nn.Conv3d(features[0], 1, 1)
 
     def forward(self, x):
         skips = []
         for enc in self.encoders:
-            x, skip = enc(x); skips.append(skip)
+            x, skip = enc(x)
+            skips.append(skip)
         x = self.bottleneck(x)
         for dec, skip in zip(self.decoders, reversed(skips)):
             x = dec(x, skip)

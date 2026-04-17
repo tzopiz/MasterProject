@@ -10,13 +10,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
-import numpy as np
+
 import matplotlib.pyplot as plt
-from matplotlib import cm
-from matplotlib.colors import Normalize, LightSource
+import numpy as np
+import pydicom
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from skimage import measure
-import pydicom
 
 # Add parent directory to path for imports if needed
 sys.path.append(str(Path(__file__).parent.parent))
@@ -261,7 +260,7 @@ def visualize_3d(volume, coords_left, coords_right, crop_size, output_path=None,
         ax.title.set_color('#f0f6fc')
         
         # Legend with dark style
-        legend = ax.legend(loc='upper left', fontsize=11, facecolor='#161b22', edgecolor='#30363d', labelcolor='#c9d1d9')
+        ax.legend(loc='upper left', fontsize=11, facecolor='#161b22', edgecolor='#30363d', labelcolor='#c9d1d9')
         
         plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='#0d1117')
         print(f"✅ Saved: {output_path}")
@@ -305,12 +304,6 @@ def main():
     print(f"Loading volume for {study_id}...")
     volume = load_dicom_volume(study_path)
     
-    # Output path
-    if args.output is None:
-        output_path = Path(f"{study_id}_3d_viz.png")
-    else:
-        output_path = Path(args.output)
-        
     # Generate 9 views: full 360° rotation every 40 degrees
     views = [(i * 40, f"{i * 40:03d}deg") for i in range(9)]  # 0, 40, 80, 120, 160, 200, 240, 280, 320
     

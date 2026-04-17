@@ -1,21 +1,22 @@
-import os
-import sys
 import argparse
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Button, Slider
-import nibabel as nib
+import sys
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import nibabel as nib
+import numpy as np
+from matplotlib.widgets import Button, Slider
 
 # Import helpers from analyze_dicom_series
 try:
-    from analyze_dicom_series import load_scan, get_pixels_hu
+    from analyze_dicom_series import get_pixels_hu, load_scan
 except ImportError:
     # Fallback if import fails (e.g. path issues)
     import pydicom
     def load_scan(path):
         slices = [pydicom.dcmread(str(p)) for p in Path(path).glob("*.dcm")]
-        if not slices: return None
+        if not slices:
+            return None
         try:
             slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
         except AttributeError:
@@ -77,11 +78,11 @@ class TMJCropTool:
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
         
-        print(f"Instructions:")
-        print(f"1. Scroll to find TMJ (Up/Down keys or Slider)")
-        print(f"2. Click 'Set Left TMJ' then click on the Left Condyle center")
-        print(f"3. Click 'Set Right TMJ' then click on the Right Condyle center")
-        print(f"4. Click 'Save Crops'")
+        print("Instructions:")
+        print("1. Scroll to find TMJ (Up/Down keys or Slider)")
+        print("2. Click 'Set Left TMJ' then click on the Left Condyle center")
+        print("3. Click 'Set Right TMJ' then click on the Right Condyle center")
+        print("4. Click 'Save Crops'")
         
         plt.show()
 
@@ -107,8 +108,10 @@ class TMJCropTool:
         self.fig.canvas.draw_idle()
 
     def on_click(self, event):
-        if event.inaxes != self.ax: return
-        if self.active_side is None: return
+        if event.inaxes != self.ax:
+            return
+        if self.active_side is None:
+            return
         
         x, y = int(event.xdata), int(event.ydata)
         z = self.z_idx
@@ -128,7 +131,8 @@ class TMJCropTool:
         import matplotlib.patches as patches
         
         for side, point in self.selected_points.items():
-            if point is None: continue
+            if point is None:
+                continue
             pz, py, px = point
             
             # Show marker if within range of current slice? 
@@ -215,7 +219,7 @@ if __name__ == "__main__":
     # Get spacing
     try:
         spacing = [float(x) for x in slices[0].PixelSpacing] + [float(slices[0].SliceThickness)]
-    except:
+    except Exception:
         spacing = [1.0, 1.0, 1.0]
         print("⚠️ Warning: Could not determine spacing, using 1.0mm")
         

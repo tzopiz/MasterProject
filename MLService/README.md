@@ -35,7 +35,7 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 Предсказание положения головок ВНЧС (сагитталь + фронталь, лево + право).
 - **Метки:** `data/tmj_position_labels.json` (6 кодов, 4 метки на пациента).
 - **Документация:** [docs/README.md](docs/README.md)
-- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md); длинная сводка прогонов — [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt)
+- **Colab / DataSphere / эксперименты:** [google_colab/README.md](google_colab/README.md) (в т.ч. артефакты **CV сагиттали**: `sagittal_cv_last.json`, `*_epochs.jsonl`, `*_analyze_*`); длинная сводка прогонов — [google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt](google_colab/POSITION_CLASSIFIER_EXPERIMENTS.txt)
 
 #### 3-классовый (v1–v4, baseline)
 - **Обучение:** `train_tmj_position_classifier.py`

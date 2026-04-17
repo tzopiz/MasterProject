@@ -9,6 +9,30 @@
 | [train_position_classifier.ipynb](train_position_classifier.ipynb) | 3D CNN на кропах 128³ (v3: балансировка, аугментации, weighted CE). Нужны DICOM + детектор + препроцессинг кропов. |
 | [train_position_classifier_2d.ipynb](train_position_classifier_2d.ipynb) | 2D multi-view (ResNet18): Approach C/A + секция **4b v5** (бинарные метки, multi-slice, CV по пациентам, SVM). Достаточно `tmj_crops/*.npy` + метки + manifest. |
 | [train_binary_position_classifier.ipynb](train_binary_position_classifier.ipynb) | **Approach A+B** — бинарная классификация (central vs non-central) с детектор-кропами 128³ (NIfTI) и BinaryFocalLoss + калибровка порога. Полностью самодостаточный ноутбук, поддерживает DataSphere (V100), Colab и локально. |
+| [train_sagittal_binary_cv.ipynb](train_sagittal_binary_cv.ipynb) | **Сагитталь, CV:** обёртка над `training/sagittal_binary_cv.py`. **DataSphere:** кропы в `datasets/tmj/detector_crops_v2` **или** (если датасет не смонтирован) в `filestore/detector_crops_v2` — см. `training/utils/datasphere_env.py`, переменная `TMJ_CROP_DIR`. Манифест/метки: датасет или `filestore`. Переменные: `TMJ_DATASET_DIR`, `TMJ_CROP_DIR`, `TMJ_MANIFEST_PATH`, `TMJ_LABELS_PATH`. JSON — `filestore/experiments/`. Инициализация: [init_datasphere_dataset.ipynb](init_datasphere_dataset.ipynb). |
+
+### Артефакты CV сагиттали (`sagittal_binary_cv` / `train_sagittal_binary_cv.ipynb`)
+
+Путь к основному JSON — поле `output_json` в `SagittalBinaryCVConfig`; по умолчанию `default_cv_output_json` (на DataSphere часто **`…/filestore/experiments/sagittal_cv_last.json`**). Соседние файлы в **той же папке**; в примерах ниже stem = `sagittal_cv_last` (локально можно лежать в `Downloads/` с теми же именами).
+
+**Во время и после обучения**
+
+| Файл | Назначение |
+|------|------------|
+| `sagittal_cv_last.json` | Полный отчёт CV: `config`, `folds[]` (в т.ч. `epoch_history`), `summary`, при необходимости `status` / `completed_folds` / `n_splits`. Перезапись **после каждого завершённого фолда** (атомарно), в конце — `complete`. |
+| `sagittal_cv_last_epochs.jsonl` | При `log_epochs_jsonl=True` (по умолчанию): **одна JSON-строка на эпоху** (метрики + `fold`) — лог при обрыве и для кривых без ожидания конца CV. |
+
+**Разбор** (нижняя ячейка ноутбука или `analyze_sagittal_cv_result(..., report_path=…/sagittal_cv_last_analyze)` — префикс без расширения):
+
+| Файл | Назначение |
+|------|------------|
+| `sagittal_cv_last_analyze.txt` | Текстовый отчёт. |
+| `sagittal_cv_last_analyze_export.json` | `fold_summaries`, `epoch_rows`, `summary`, `config`. |
+| `sagittal_cv_last_analyze_folds.csv` | Таблица по фолдам (`pandas`). |
+| `sagittal_cv_last_analyze_epochs.csv` | Все эпохи всех фолдов. |
+| `sagittal_cv_last_analyze_curves.png` | Графики val ROC-AUC и train loss. |
+
+Код: `training/sagittal_binary_cv.py` (`run_sagittal_binary_cv`, `analyze_sagittal_cv_result`). Кратко то же: [training/README.md](../training/README.md).
 
 ### Артефакты binary-ноутбука
 

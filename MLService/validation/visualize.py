@@ -4,13 +4,13 @@ Visualization utilities for segmentation results
 Functions to visualize predictions, ground truth, and errors.
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.colors import ListedColormap
-from pathlib import Path
-from typing import Optional, Tuple, List
 import logging
+from pathlib import Path
+from typing import List, Optional
+
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +213,7 @@ def plot_slice_sequence(
             gt_slice = gt_masks[slice_idx]
             axes[1, i].imshow(img_slice, cmap='gray')
             axes[1, i].imshow(gt_slice, cmap='Greens', alpha=0.4 * (gt_slice > 0))
-            axes[1, i].set_title(f'Ground Truth', fontsize=10)
+            axes[1, i].set_title('Ground Truth', fontsize=10)
             axes[1, i].axis('off')
     
     plt.suptitle('Segmentation Sequence', fontsize=14, fontweight='bold')
@@ -326,7 +326,7 @@ def plot_confusion_matrix(
     # Add text annotations
     for i in range(2):
         for j in range(2):
-            text = ax.text(j, i, f'{cm[i, j]:,}',
+            ax.text(j, i, f'{cm[i, j]:,}',
                          ha="center", va="center", color="black", fontsize=14)
     
     plt.tight_layout()

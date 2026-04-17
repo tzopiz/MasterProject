@@ -80,8 +80,23 @@ def draw_box_on_slice(ax, center_2d, half=64, color="lime", lw=1.5):
     ax.plot(cx, cy, "+", color=color, markersize=10, markeredgewidth=1.5)
 
 
-def show_slices_with_box(axes_row, vol_norm, center_zyx, half=64, color="lime", title_prefix=""):
-    """Plot axial/coronal/sagittal slices centred on detected joint."""
+def show_slices_with_box(
+    axes_row,
+    vol_norm,
+    center_zyx,
+    half=64,
+    color="lime",
+    title_prefix="",
+    *,
+    imshow_origin: str = "upper",
+):
+    """Plot axial / coronal / sagittal slices centred on detected joint.
+
+    ``imshow_origin``: default ``\"upper\"`` so the first row of each 2D slice
+    is at the **top** of the figure — same convention as ``roi_annotation_tool``
+    (OpenCV) and typical axial viewing. Use ``\"lower\"`` only if you need old
+    matplotlib-style plots.
+    """
     z, y, x = [int(c) for c in center_zyx]
     D, H, W = vol_norm.shape
 
@@ -92,7 +107,7 @@ def show_slices_with_box(axes_row, vol_norm, center_zyx, half=64, color="lime", 
     ]
 
     for ax, (sl, c2d, title) in zip(axes_row, slices):
-        ax.imshow(sl, cmap="gray", origin="lower", aspect="auto")
+        ax.imshow(sl, cmap="gray", origin=imshow_origin, aspect="auto")
         draw_box_on_slice(ax, c2d, half=half, color=color)
         ax.set_title(title, fontsize=8)
         ax.axis("off")

@@ -3,10 +3,11 @@ File Cleaner Service
 Removes junk files from patient directories
 """
 
-import os
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List
+
 import pydicom
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class FileCleaner:
                 try:
                     pydicom.dcmread(str(filepath), stop_before_pixels=True)
                     return False  # It's a DICOM file, keep it
-                except:
+                except Exception:
                     return True  # Not a DICOM, remove it
             return True
         

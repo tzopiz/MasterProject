@@ -17,7 +17,7 @@ Each __getitem__ returns:
 import logging
 import random
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pydicom
@@ -30,6 +30,7 @@ from training.tmj_position_label_table import (
     build_index,
     split_by_patient,
 )
+from training.utils.volume_aug_3d import augment_binary_volume_train
 
 logger = logging.getLogger(__name__)
 
@@ -299,16 +300,32 @@ class TMJBinaryPositionDataset(Dataset):
         Output of training.tmj_position_label_table.binarize_labels().
         Each record must have keys: crop_path, sag, fr.
     is_train : bool
-        Enables random flip augmentation when True.
+        When True, applies ``train_augment_mode`` (validation always has no aug).
+    sagittal_only : bool
+        If True, returns only the sagittal binary label as float32 scalar
+        (for BCE / focal on a single head).
+    train_augment_mode : str
+        ``none`` | ``flip_only`` | ``strong`` — see ``training.utils.volume_aug_3d``.
+        Ignored when ``is_train`` is False.
     """
 
-    def __init__(self, records: List[Dict], is_train: bool = False) -> None:
+    def __init__(
+        self,
+        records: List[Dict],
+        is_train: bool = False,
+        sagittal_only: bool = False,
+        train_augment_mode: str = "flip_only",
+    ) -> None:
         self.records = records
         self.is_train = is_train
+        self.sagittal_only = sagittal_only
+        self.train_augment_mode = train_augment_mode
         logger.info(
-            "TMJBinaryPositionDataset: %d samples (%s)",
+            "TMJBinaryPositionDataset: %d samples (%s)%s aug=%s",
             len(records),
             "train" if is_train else "val",
+            " sagittal_only" if sagittal_only else "",
+            train_augment_mode if is_train else "none",
         )
 
     def _load_nifti(self, path: str) -> np.ndarray:
@@ -330,15 +347,56 @@ class TMJBinaryPositionDataset(Dataset):
         volume = self._load_nifti(rec["crop_path"])
         volume = self._normalize(volume)
 
-        # Training augmentation: random axis flips
         if self.is_train:
-            for axis in range(3):
-                if random.random() < 0.5:
-                    volume = np.flip(volume, axis=axis).copy()
+            volume = augment_binary_volume_train(volume, self.train_augment_mode)
 
         volume_tensor = torch.from_numpy(volume).float().unsqueeze(0)  # (1, D, H, W)
-        labels_tensor = torch.tensor([rec["sag"], rec["fr"]], dtype=torch.long)  # (2,)
+        if self.sagittal_only:
+            labels_tensor = torch.tensor(float(rec["sag"]), dtype=torch.float32)
+        else:
+            labels_tensor = torch.tensor([rec["sag"], rec["fr"]], dtype=torch.long)  # (2,)
         return volume_tensor, labels_tensor
+
+
+def make_binary_position_loaders(
+    train_records: List[Dict],
+    val_records: List[Dict],
+    batch_size: int = 8,
+    num_workers: int = 0,
+    sagittal_only: bool = False,
+    worker_init_fn: Optional[Callable[[int], None]] = None,
+    train_augment_mode: str = "flip_only",
+) -> Tuple[DataLoader, DataLoader]:
+    """
+    Build train/val DataLoaders from pre-split binary record lists.
+
+    Used by K-fold CV and notebooks; keeps ``get_binary_position_dataloaders``
+    as the thin wrapper over ``build_index`` → ``binarize_labels`` → split.
+
+    There is **no separate test split** here — only train and validation loaders.
+    """
+    train_ds = TMJBinaryPositionDataset(
+        train_records,
+        is_train=True,
+        sagittal_only=sagittal_only,
+        train_augment_mode=train_augment_mode,
+    )
+    val_ds = TMJBinaryPositionDataset(val_records, is_train=False, sagittal_only=sagittal_only)
+
+    loader_kw: Dict = {
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+        "pin_memory": True,
+    }
+    if num_workers > 0:
+        loader_kw["persistent_workers"] = True
+        loader_kw["prefetch_factor"] = 2
+    if worker_init_fn is not None:
+        loader_kw["worker_init_fn"] = worker_init_fn
+
+    train_loader = DataLoader(train_ds, shuffle=True, **loader_kw)
+    val_loader = DataLoader(val_ds, shuffle=False, **loader_kw)
+    return train_loader, val_loader
 
 
 def get_binary_position_dataloaders(
@@ -349,6 +407,9 @@ def get_binary_position_dataloaders(
     batch_size: int = 4,
     num_workers: int = 0,
     split_ratio: float = 0.8,
+    sagittal_only: bool = False,
+    worker_init_fn: Optional[Callable[[int], None]] = None,
+    train_augment_mode: str = "flip_only",
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Build binary classification dataloaders from detector-generated crops.
@@ -363,9 +424,13 @@ def get_binary_position_dataloaders(
         batch_size: Samples per batch (each sample = one condyle side).
         num_workers: DataLoader workers.
         split_ratio: Fraction of patients for training.
+        sagittal_only: If True, only sagittal binary label is returned per sample.
+        worker_init_fn: Optional ``worker_init_fn`` for reproducible augmentations.
+        train_augment_mode: Augmentations on **train** only (``none`` / ``flip_only`` / ``strong``).
 
     Returns:
-        (train_loader, val_loader)
+        ``(train_loader, val_loader)`` — **no test loader**; use nested CV or a
+        frozen holdout workflow elsewhere if you need a final test set.
     """
     all_records = build_index(
         manifest_path=manifest_path,
@@ -375,20 +440,12 @@ def get_binary_position_dataloaders(
     binary_records = binarize_labels(all_records, crop_dir)
     train_records, val_records = split_by_patient(binary_records, split_ratio=split_ratio)
 
-    train_ds = TMJBinaryPositionDataset(train_records, is_train=True)
-    val_ds = TMJBinaryPositionDataset(val_records, is_train=False)
-
-    train_loader = DataLoader(
-        train_ds,
+    return make_binary_position_loaders(
+        train_records,
+        val_records,
         batch_size=batch_size,
-        shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        sagittal_only=sagittal_only,
+        worker_init_fn=worker_init_fn,
+        train_augment_mode=train_augment_mode,
     )
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-    )
-    return train_loader, val_loader
