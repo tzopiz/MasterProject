@@ -92,7 +92,10 @@ MLService/validation/reports/
 *.tensorboard
 
 # Локальные каталоги и файлы вне git (не коммитить)
-/docs/
+# Shared specifications; other local documentation stays ignored.
+/docs/*
+!/docs/README.md
+!/docs/spec/
 /Nir/
 /examples/
 /scripts/presentation/
