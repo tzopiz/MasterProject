@@ -1,0 +1,27 @@
+name: Specifications
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spec-docs:
+    name: Specification consistency
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate specifications
+        run: |
+          python3 scripts/check_specs.py --self-test
+          python3 scripts/check_specs.py
