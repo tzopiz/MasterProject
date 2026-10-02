@@ -288,7 +288,7 @@ def get_position_dataloaders(
 
 class TMJBinaryPositionDataset(Dataset):
     """
-    Dataset for binary TMJ position classification (central vs non-central).
+    Shared per-side ROI dataset: binary default or sagittal multiclass.
 
     Loads pre-generated 128×128×128 NIfTI crops produced by
     tools/auto_crop_from_detector.py. Each sample represents one condyle
@@ -307,6 +307,9 @@ class TMJBinaryPositionDataset(Dataset):
     train_augment_mode : str
         ``none`` | ``flip_only`` | ``strong`` — see ``training.utils.volume_aug_3d``.
         Ignored when ``is_train`` is False.
+    num_classes : int
+        2 returns legacybinary floatlabels;3 requires sagittal_only and no train
+        spatialaugmentation, returning an int64 scalarclass0/1/2.
     """
 
     def __init__(
@@ -315,7 +318,13 @@ class TMJBinaryPositionDataset(Dataset):
         is_train: bool = False,
         sagittal_only: bool = False,
         train_augment_mode: str = "flip_only",
+        num_classes: int = 2,
     ) -> None:
+        if type(num_classes) is not int or num_classes not in (2, 3):
+            raise ValueError("invalid_position_dataset_classes")
+        if num_classes == 3 and (not sagittal_only or (is_train and train_augment_mode != "none")):
+            raise ValueError("incompatible_multiclass_augmentation_or_task")
+        self.num_classes = num_classes
         self.records = records
         self.is_train = is_train
         self.sagittal_only = sagittal_only
@@ -352,7 +361,9 @@ class TMJBinaryPositionDataset(Dataset):
 
         volume_tensor = torch.from_numpy(volume).float().unsqueeze(0)  # (1, D, H, W)
         if self.sagittal_only:
-            labels_tensor = torch.tensor(float(rec["sag"]), dtype=torch.float32)
+            labels_tensor = torch.tensor(
+                rec["sag"], dtype=torch.float32 if self.num_classes == 2 else torch.long
+            )
         else:
             labels_tensor = torch.tensor([rec["sag"], rec["fr"]], dtype=torch.long)  # (2,)
         return volume_tensor, labels_tensor
@@ -366,6 +377,7 @@ def make_binary_position_loaders(
     sagittal_only: bool = False,
     worker_init_fn: Optional[Callable[[int], None]] = None,
     train_augment_mode: str = "flip_only",
+    num_classes: int = 2,
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Build train/val DataLoaders from pre-split binary record lists.
@@ -380,8 +392,11 @@ def make_binary_position_loaders(
         is_train=True,
         sagittal_only=sagittal_only,
         train_augment_mode=train_augment_mode,
+        num_classes=num_classes,
     )
-    val_ds = TMJBinaryPositionDataset(val_records, is_train=False, sagittal_only=sagittal_only)
+    val_ds = TMJBinaryPositionDataset(
+        val_records, is_train=False, sagittal_only=sagittal_only, num_classes=num_classes
+    )
 
     loader_kw: Dict = {
         "batch_size": batch_size,

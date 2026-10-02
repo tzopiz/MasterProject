@@ -108,3 +108,9 @@ MLService/validation/reports/
 
 MLService/docs/superpowers/
 
+
+# Private research inputs/replay settings and local agent evidence
+**/*.private.json
+**/*.private.jsonl
+**/*.private.txt
+MLService/docs/ai/tasks/

@@ -4,30 +4,44 @@ Automatic ROI cropping using trained TMJ heatmap detectors.
 
 Two separate single-joint detectors (left + right), each TMJHeatmapDetector(out_channels=1).
 
-Usage:
+Usage (historical selection is explicit legacy):
     ./venv/bin/python tools/auto_crop_from_detector.py \
+        --legacy-input \
         --left-model  models/checkpoints/left_detector.pth  \
         --right-model models/checkpoints/right_detector.pth \
         --dataset     data/dataset_cbct_public              \
         --output      data/detector_crops_v2               \
         --crop-size   128
 """
+
 import argparse
 import json
 import logging
 import sys
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
-import pydicom
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from scipy import ndimage
-from tqdm import tqdm
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from models.blocks import validate_research_architecture
+from training.roi_provenance import (
+    DETECTOR_FAMILY,
+    PREPROCESSING,
+    SUPPORTED_PROFILE_HELP,
+    ROIValidationError,
+    extract_fixed_crop,
+    load_validated_series,
+    preprocessing_options,
+    sha256_file,
+    study_key,
+    validate_roi_pair,
+    write_roi_crop,
+)
+from training.tmj_position_label_table import InputValidationError, build_canonical_index
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -37,12 +51,15 @@ TARGET_SHAPE = (96, 128, 128)
 
 # ── Model (inline, no import dependency) ──────────────────────────────────
 
+
 def _double_conv(in_ch, out_ch):
     return nn.Sequential(
         nn.Conv3d(in_ch, out_ch, 3, padding=1, bias=False),
-        nn.BatchNorm3d(out_ch), nn.ReLU(inplace=True),
+        nn.BatchNorm3d(out_ch),
+        nn.ReLU(inplace=True),
         nn.Conv3d(out_ch, out_ch, 3, padding=1, bias=False),
-        nn.BatchNorm3d(out_ch), nn.ReLU(inplace=True),
+        nn.BatchNorm3d(out_ch),
+        nn.ReLU(inplace=True),
     )
 
 
@@ -60,15 +77,23 @@ class _EncoderBlock(nn.Module):
 class _DecoderBlock(nn.Module):
     def __init__(self, in_ch, skip_ch, out_ch):
         super().__init__()
-        self.up   = nn.ConvTranspose3d(in_ch, in_ch // 2, 2, stride=2)
+        self.up = nn.ConvTranspose3d(in_ch, in_ch // 2, 2, stride=2)
         self.conv = _double_conv(in_ch // 2 + skip_ch, out_ch)
 
     def forward(self, x, skip):
         x = self.up(x)
         if x.shape != skip.shape:
-            x = F.pad(x, [0, skip.shape[4]-x.shape[4],
-                           0, skip.shape[3]-x.shape[3],
-                           0, skip.shape[2]-x.shape[2]])
+            x = F.pad(
+                x,
+                [
+                    0,
+                    skip.shape[4] - x.shape[4],
+                    0,
+                    skip.shape[3] - x.shape[3],
+                    0,
+                    skip.shape[2] - x.shape[2],
+                ],
+            )
         return self.conv(torch.cat([skip, x], dim=1))
 
 
@@ -77,6 +102,7 @@ class TMJHeatmapDetector(nn.Module):
         super().__init__()
         if features is None:
             features = [32, 64, 128, 256]
+        validate_research_architecture(features)
         self.encoders = nn.ModuleList()
         prev = 1
         for f in features:
@@ -101,207 +127,275 @@ class TMJHeatmapDetector(nn.Module):
         return self.head(x)
 
 
-# ── Volume I/O ────────────────────────────────────────────────────────────
-
-def load_dicom_volume(dicom_dir: Path) -> np.ndarray:
-    files = sorted(dicom_dir.glob("*.dcm"))
-    if not files:
-        raise FileNotFoundError(f"No .dcm in {dicom_dir}")
-    slices = [pydicom.dcmread(str(f)) for f in files]
-    slices.sort(key=lambda s: float(s.InstanceNumber))
-    planes = []
-    for s in slices:
-        arr = s.pixel_array.astype(np.float32)
-        arr = arr * float(getattr(s, "RescaleSlope", 1.0)) + float(getattr(s, "RescaleIntercept", 0.0))
-        planes.append(arr)
-    return np.stack(planes, axis=0)
+# ── Shared bounded volume / crop path ──────────────────────────────────────
 
 
-def normalize(vol: np.ndarray) -> np.ndarray:
-    p2, p98 = np.percentile(vol, [2, 98])
+def load_dicom_volume(dicom_dir):
+    """Compatibility array return; new writers retain load_validated_series metadata."""
+    return load_validated_series(dicom_dir)[0]
+
+
+def normalize(vol):
+    if vol.ndim != 3 or not np.isfinite(vol).all():
+        raise ROIValidationError("invalid_source_pixels")
+    p2, p98 = np.percentile(vol, PREPROCESSING["percentiles"])
     vol = np.clip(vol, p2, p98)
     denom = p98 - p2
     return ((vol - p2) / denom if denom > 0 else np.zeros_like(vol)).astype(np.float32)
 
 
-def prepare_input(vol: np.ndarray) -> Tuple[torch.Tensor, np.ndarray]:
-    """Normalize + resize to TARGET_SHAPE. Returns (tensor, orig_shape)."""
+def prepare_input(vol):
+    """Historical percentile + scipy zoom convention, unchanged target coordinates."""
     orig_shape = np.array(vol.shape, dtype=float)
     vol = normalize(vol)
     if tuple(vol.shape) != TARGET_SHAPE:
-        zoom = [t / s for t, s in zip(TARGET_SHAPE, vol.shape)]
-        vol = ndimage.zoom(vol, zoom, order=1).astype(np.float32)
-    t = torch.from_numpy(vol).float().unsqueeze(0).unsqueeze(0)  # (1,1,D,H,W)
-    return t, orig_shape
+        vol = ndimage.zoom(
+            vol,
+            [t / s for t, s in zip(TARGET_SHAPE, vol.shape)],
+            order=1,
+            mode="constant",
+            cval=0.0,
+            prefilter=True,
+            grid_mode=False,
+        ).astype(np.float32)
+    return torch.from_numpy(vol).float().unsqueeze(0).unsqueeze(0), orig_shape
 
 
-def argmax_to_orig(hm: np.ndarray, orig_shape: np.ndarray) -> np.ndarray:
-    """Find peak in heatmap and scale back to original voxel space."""
+def argmax_to_orig(hm, orig_shape):
+    if hm.shape != TARGET_SHAPE or not np.isfinite(hm).all():
+        raise ROIValidationError("invalid_detector_output")
     idx = np.unravel_index(hm.argmax(), hm.shape)
-    ds_coords = np.array(idx, dtype=float)
-    scale = orig_shape / np.array(TARGET_SHAPE, dtype=float)
-    orig_coords = (ds_coords * scale).astype(int)
-    orig_coords = np.clip(orig_coords, 0, orig_shape.astype(int) - 1)
-    return orig_coords
+    coords = (np.array(idx, dtype=float) * orig_shape / np.array(TARGET_SHAPE)).astype(int)
+    return np.clip(coords, 0, orig_shape.astype(int) - 1)
 
 
-# ── Crop extraction ───────────────────────────────────────────────────────
-
-def extract_crop(vol: np.ndarray, center: np.ndarray, crop_size: int = 128) -> np.ndarray:
-    D, H, W = vol.shape
-    half = crop_size // 2
-    z, y, x = int(center[0]), int(center[1]), int(center[2])
-    zs, ze = max(0, z-half), min(D, z+half)
-    ys, ye = max(0, y-half), min(H, y+half)
-    xs, xe = max(0, x-half), min(W, x+half)
-    crop = vol[zs:ze, ys:ye, xs:xe]
-    if crop.shape != (crop_size, crop_size, crop_size):
-        pad = np.zeros((crop_size, crop_size, crop_size), dtype=crop.dtype)
-        pz = (crop_size - crop.shape[0]) // 2
-        py = (crop_size - crop.shape[1]) // 2
-        px_ = (crop_size - crop.shape[2]) // 2
-        pad[pz:pz+crop.shape[0], py:py+crop.shape[1], px_:px_+crop.shape[2]] = crop
-        crop = pad
-    return crop
+def extract_crop(vol, center, crop_size=128):
+    return extract_fixed_crop(vol, center, crop_size)[0]
 
 
-def save_nifti(arr: np.ndarray, path: Path):
-    import nibabel as nib
-    nib.save(nib.Nifti1Image(arr, np.eye(4)), str(path))
+def load_paired_detector(path, device):
+    """Historical architecture; optional explicit features support bounded CPU checks."""
+    try:
+        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+        if checkpoint.get("detector_family", DETECTOR_FAMILY) != DETECTOR_FAMILY:
+            raise ROIValidationError("unsupported_detector_family")
+        config = checkpoint.get("model_config", {})
+        features = config.get("features", [32, 64, 128, 256])
+        if (
+            not isinstance(features, list)
+            or not 1 <= len(features) <= 4
+            or any(type(f) is not int or f <= 0 for f in features)
+        ):
+            raise ROIValidationError("unsupported_detector_configuration")
+        try:
+            validate_research_architecture(features)
+        except ValueError:
+            raise ROIValidationError("unsupported_detector_configuration") from None
+        model = TMJHeatmapDetector(features=features)
+        model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        return model.eval().to(device)
+    except ROIValidationError:
+        raise
+    except Exception:
+        raise ROIValidationError("incompatible_detector_checkpoint") from None
 
 
-# ── Main ──────────────────────────────────────────────────────────────────
+def generate_roi_pair(
+    record,
+    left_model,
+    right_model,
+    detectors,
+    crop_paths,
+    *,
+    crop_size=128,
+    device="cpu",
+    skip_existing=False,
+):
+    """Reusable source→paired ROI seam; cache mismatch regenerates BOTH sides."""
+    output_record = {
+        **record,
+        "crop_paths": {side: str(crop_paths[side]) for side in ("left", "right")},
+    }
+    options = preprocessing_options(crop_size)
+    if skip_existing:
+        try:
+            validate_roi_pair(
+                output_record, expected_detectors=detectors, expected_preprocessing=options
+            )
+            return "skipped"
+        except ROIValidationError:
+            logger.info("ROI cache invalid; regenerating pair")
+    raw_vol, source = load_validated_series(record["dicom_dir"])
+    tensor, original_shape = prepare_input(raw_vol)
+    with torch.no_grad():
+        tensor = tensor.to(device)
+        for side, model in (("left", left_model), ("right", right_model)):
+            heatmap = torch.sigmoid(model(tensor)).squeeze(0).squeeze(0).cpu().numpy()
+            center = argmax_to_orig(heatmap, original_shape)
+            write_roi_crop(
+                raw_vol,
+                center,
+                crop_size,
+                crop_paths[side],
+                side=side,
+                record=record,
+                source=source,
+                detectors=detectors,
+            )
+    validate_roi_pair(output_record, expected_detectors=detectors, expected_preprocessing=options)
+    return "generated"
+
+
+class _SafeParser(argparse.ArgumentParser):
+    def error(self, message):
+        print(json.dumps({"ready": False, "code": "invalid_arguments"}))
+        self.exit(2)
+
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--left-model",  required=True)
-    p.add_argument("--right-model", required=True)
-    p.add_argument("--dataset",     default="data/dataset_cbct_public")
-    p.add_argument("--split-json",  default="data/detector_split.json",
-                   help="Use all studies from split JSON (train+val+test). "
-                        "Ignored if --studies is given.")
-    p.add_argument("--studies",     nargs="*",
-                   help="Explicit list of study IDs to process")
-    p.add_argument("--output",      default="data/detector_crops_v2")
-    p.add_argument("--crop-size",   type=int, default=128)
-    p.add_argument("--skip-existing", action="store_true")
-    p.add_argument("--device",      default=None)
-    args = p.parse_args()
-
-    # Device
-    if args.device:
-        device = torch.device(args.device)
-    elif torch.cuda.is_available():
-        device = torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
-    logger.info("Device: %s", device)
-
-    # Load models
-    def load_model(path):
-        ckpt = torch.load(path, map_location="cpu")
-        m = TMJHeatmapDetector()
-        m.load_state_dict(ckpt["model_state_dict"])
-        m.eval().to(device)
-        logger.info("Loaded %s (ep %s, MAE %.2f ds_px)",
-                    Path(path).name, ckpt.get("epoch", "?"),
-                    ckpt.get("best_val_mae", float("nan")))
-        return m
-
-    left_model  = load_model(args.left_model)
-    right_model = load_model(args.right_model)
-
-    # Studies
-    dataset_dir = Path(args.dataset)
-    output_dir  = Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    if args.studies:
-        study_ids = args.studies
-    else:
-        with open(args.split_json) as f:
-            split = json.load(f)
-        study_ids = split["train"] + split["val"] + split["test"]
-
-    logger.info("Studies to process: %d", len(study_ids))
-
-    done, skipped, failed = 0, 0, 0
-    all_meta = []
-
-    for sid in tqdm(study_ids, desc="Cropping"):
-        out_study = output_dir / sid
-        left_nii  = out_study / f"{sid}_left.nii.gz"
-        right_nii = out_study / f"{sid}_right.nii.gz"
-
-        if args.skip_existing and left_nii.exists() and right_nii.exists():
-            skipped += 1
-            continue
-
-        study_dir = dataset_dir / sid
-        if not study_dir.exists():
-            logger.warning("SKIP %s: directory not found", sid)
-            failed += 1
-            continue
-
-        try:
-            raw_vol = load_dicom_volume(study_dir)
-            inp, orig_shape = prepare_input(raw_vol)
-            inp = inp.to(device)
-
-            with torch.no_grad():
-                left_hm  = torch.sigmoid(left_model(inp)).squeeze().cpu().numpy()
-                right_hm = torch.sigmoid(right_model(inp)).squeeze().cpu().numpy()
-
-            left_orig  = argmax_to_orig(left_hm,  orig_shape)
-            right_orig = argmax_to_orig(right_hm, orig_shape)
-
-            # Extract crops from raw (non-normalized) volume for classifier
-            left_crop  = extract_crop(raw_vol, left_orig,  args.crop_size)
-            right_crop = extract_crop(raw_vol, right_orig, args.crop_size)
-
-            out_study.mkdir(exist_ok=True)
-            save_nifti(left_crop,  left_nii)
-            save_nifti(right_crop, right_nii)
-
-            meta = {
-                "study": sid,
-                "volume_shape": list(raw_vol.shape),
-                "predicted_coords": {
-                    "left":  left_orig.tolist(),
-                    "right": right_orig.tolist(),
-                },
-                "crop_size": args.crop_size,
-                "crop_paths": {
-                    "left":  str(left_nii.relative_to(output_dir.parent)),
-                    "right": str(right_nii.relative_to(output_dir.parent)),
-                },
+    parser = _SafeParser(description=__doc__, epilog=SUPPORTED_PROFILE_HELP)
+    parser.add_argument("--left-model", required=True)
+    parser.add_argument("--right-model", required=True)
+    parser.add_argument("--canonical-input", help="Strict schema-v1 private study/label JSON")
+    parser.add_argument("--dataset-root", help="Root for canonical relative paths and output")
+    parser.add_argument("--index-output", help="Generated strict private index (*.private.json)")
+    parser.add_argument(
+        "--legacy-input",
+        action="store_true",
+        help="Explicit historical split/study-ID path; not a canonical label join",
+    )
+    parser.add_argument("--dataset", default="data/dataset_cbct_public")
+    parser.add_argument("--split-json", default="data/detector_split.json")
+    parser.add_argument("--studies", nargs="*")
+    parser.add_argument("--output", default="data/detector_crops_v2")
+    parser.add_argument("--crop-size", type=int, default=128)
+    parser.add_argument("--skip-existing", action="store_true")
+    parser.add_argument("--device", default=None)
+    args = parser.parse_args()
+    try:
+        preprocessing_options(args.crop_size)
+        output = Path(args.output).resolve()
+        canonical = None
+        if args.canonical_input:
+            if args.legacy_input or args.studies or not args.dataset_root:
+                raise ROIValidationError("invalid_arguments")
+            root = Path(args.dataset_root).resolve()
+            if not output.is_relative_to(root):
+                raise ROIValidationError("output_outside_dataset_root")
+            index_output = (
+                Path(args.index_output) if args.index_output else output / "inputs.private.json"
+            )
+            if not index_output.name.endswith(".private.json"):
+                raise ROIValidationError("private_index_suffix_required")
+            records = build_canonical_index(args.canonical_input, root, require_crops=False)
+            canonical = json.loads(Path(args.canonical_input).read_text(encoding="utf-8"))
+        else:
+            if not args.legacy_input or args.index_output:
+                raise ROIValidationError("canonical_input_required")
+            root = Path(args.dataset).resolve()
+            if args.studies:
+                study_ids = args.studies
+            else:
+                split = json.loads(Path(args.split_json).read_text(encoding="utf-8"))
+                study_ids = split["train"] + split["val"] + split["test"]
+            records = []
+            for sid in study_ids:
+                if not isinstance(sid, str) or not sid:
+                    raise ROIValidationError("invalid_legacy_study")
+                series = (root / sid).resolve()
+                if (
+                    Path(sid).is_absolute()
+                    or not series.is_relative_to(root)
+                    or not series.is_dir()
+                ):
+                    raise ROIValidationError("invalid_legacy_study")
+                records.append(
+                    {"source_id": "legacy-unverified", "study_id": sid, "dicom_dir": str(series)}
+                )
+        device = torch.device(
+            args.device
+            or (
+                "cuda"
+                if torch.cuda.is_available()
+                else "mps"
+                if torch.backends.mps.is_available()
+                else "cpu"
+            )
+        )
+        detectors = {
+            "family": DETECTOR_FAMILY,
+            "left_sha256": sha256_file(args.left_model),
+            "right_sha256": sha256_file(args.right_model),
+        }
+        left = load_paired_detector(args.left_model, device)
+        right = load_paired_detector(args.right_model, device)
+        # Detect a changing checkpoint instead of attaching its old hash to new weights.
+        if detectors["left_sha256"] != sha256_file(args.left_model) or detectors[
+            "right_sha256"
+        ] != sha256_file(args.right_model):
+            raise ROIValidationError("changing_detector_checkpoint")
+        done = skipped = failed = 0
+        generated = {}
+        for record in records:
+            paths = {
+                side: output / study_key(record) / f"{side}.nii.gz" for side in ("left", "right")
             }
-            with open(out_study / f"{sid}_metadata.json", "w") as f:
-                json.dump(meta, f, indent=2)
-
-            all_meta.append(meta)
-            done += 1
-
-        except Exception as e:
-            logger.error("FAIL %s: %s", sid, e)
-            failed += 1
-
-    summary = {
-        "left_model":  args.left_model,
-        "right_model": args.right_model,
-        "crop_size":   args.crop_size,
-        "total": len(study_ids), "done": done,
-        "skipped": skipped, "failed": failed,
-        "studies": all_meta,
-    }
-    with open(output_dir / "crop_summary.json", "w") as f:
-        json.dump(summary, f, indent=2)
-
-    logger.info("Done: %d  Skipped: %d  Failed: %d", done, skipped, failed)
-    logger.info("Output: %s", output_dir)
+            try:
+                if any(not path.resolve().is_relative_to(output) for path in paths.values()):
+                    raise ROIValidationError("output_path_escape")
+                status = generate_roi_pair(
+                    record,
+                    left,
+                    right,
+                    detectors,
+                    paths,
+                    crop_size=args.crop_size,
+                    device=device,
+                    skip_existing=args.skip_existing,
+                )
+                if status == "skipped":
+                    skipped += 1
+                else:
+                    done += 1
+                generated[(record["source_id"], record["study_id"])] = paths
+            except ROIValidationError as error:
+                logger.error("ROI generation failed: %s", error.code)
+                failed += 1
+        output.mkdir(parents=True, exist_ok=True)
+        summary = {
+            "schema_version": 1,
+            "total": len(records),
+            "generated": done,
+            "skipped": skipped,
+            "failed": failed,
+            "detectors": detectors,
+            "preprocessing": preprocessing_options(args.crop_size),
+            "detector_training_identity": "unknown",
+            "canonical_index_written": False,
+        }
+        if canonical is not None and failed == 0:
+            for row in canonical["studies"]:
+                row["crops"] = {
+                    side: str(path.relative_to(root))
+                    for side, path in generated[(row["source_id"], row["study_id"])].items()
+                }
+            index_output.parent.mkdir(parents=True, exist_ok=True)
+            index_output.write_text(json.dumps(canonical, indent=2), encoding="utf-8")
+            summary["canonical_index_written"] = True
+        (output / "crop_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        print(json.dumps(summary))
+        return 2 if failed else 0
+    except InputValidationError as error:
+        print(json.dumps(error.report))
+        return 2
+    except ROIValidationError as error:
+        print(json.dumps({"ready": False, "code": error.code}))
+        return 2
+    except Exception:
+        # Arg paths, checkpoint metadata and decoder errors must stay private.
+        print(json.dumps({"ready": False, "code": "unreadable_crop_input"}))
+        return 2
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

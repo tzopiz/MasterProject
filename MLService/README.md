@@ -9,9 +9,28 @@
 
 Краткие входы: [models/README.md](models/README.md) · [tools/README.md](tools/README.md) · [training/README.md](training/README.md) · [services/README.md](services/README.md) · [utils/README.md](utils/README.md) · [data/README.md](data/README.md) · [tests/README.md](tests/README.md) · [docs/README.md](docs/README.md) · [validation/README.md](validation/README.md) · [experiments/README.md](experiments/README.md) · [google_colab/README.md](google_colab/README.md)
 
+## Исследовательский путь перед новым обучением
+
+Основной вход — [единый config, проверка данных и запуск](google_colab/README.md); [DataSphere: подготовить → подтвердить → получить результат](docs/cloud-launch/README.md) описывает перенос данных и платное задание. Контракт всего пути и критерии проверки находятся в [спецификации подготовки](docs/spec/features/dataset-readiness/README.md).
+
+- Исходный файл связывает конкретные исследования, пациентов и метки; [строгий индекс](docs/spec/functional/data/README.md) не угадывает соответствия по имени или номеру случая.
+- Для обучения используются две проверенные ROI на исследование с паспортами происхождения. Из DICOM их создаёт [paired heatmap pipeline](docs/ai/data/README.md); веса исторического регрессионного API не заменяют эти локализаторы.
+- [DICOM-инференс](docs/ai/inference/README.md) использует завершённый прогон всех folds и те же локализаторы/ROI preprocessing; доступны binary и sagittal multiclass.
+- Параметры задаются одним приватным JSON. Preflight выполняется до обучения; сохранённые checkpoints, предсказания и параметры позволяют проверить результат. Validation участвует в выборе модели, поэтому отчёт обозначен `development_cv`.
+
+```bash
+# Из MLService, Python 3.12; пути в config относятся к его каталогу.
+python -m tools.run_research --config /private/staging/research.private.json --preflight
+python -m tools.run_research --config /private/staging/research.private.json
+```
+
+Файл исследований и ссылку на разрешённый датасет можно передать для подготовки конкретного запуска. Недостающая идентичность пациента, применимость метки или совместимость весов остаются причиной отказа, а не заполняются догадкой. Исходные DICOM, таблица соответствий и построчные результаты остаются приватными; псевдонимизация не доказывает анонимность пикселей. Открытые источники для отдельной разметки: [проверенный список и ограничения](docs/public-datasets/README.md).
+
+Ниже описаны исторические инструменты и API. Их команды и результаты не заменяют основной исследовательский config и не доказывают качество нового обучения.
+
 ---
 
-## 🚀 Текущий пайплайн (Pipeline)
+## Исторические инструменты пайплайна
 
 Весь процесс разделен на 3 основных этапа:
 
@@ -59,13 +78,10 @@ python tools/organize_dataset.py --input <raw_data_folder> --output data/dataset
 - **Артефакты ноутбука:** `experiments/sag_only_<timestamp>/` (веса, `metrics.jsonl`, `training_analysis.json`, графики); в §9 — ZIP `*_bundle.zip` для скачивания. Примеры полных копий: [`experiments/sag_only_20260411_191537/README.md`](experiments/sag_only_20260411_191537/README.md) (последний зафиксированный прогон), [`experiments/sag_only_20260411_182037/README.md`](experiments/sag_only_20260411_182037/README.md); индекс — [`experiments/README.md`](experiments/README.md).
 
 ```bash
-# Шаг 1: сгенерировать кропы
-./venv/bin/python tools/auto_crop_from_detector.py \
-    --model experiments/detector_20251126_003305/best_model.pth \
-    --input data/dataset_cbct_public --output data/detector_crops \
-    --crop_size 128 --batch --format nifti
-
-# Шаг 2: обучить
+# Исторический trainer принимает уже подготовленные кропы.
+# Их canonical генерация и паспорта описаны в docs/ai/data/README.md.
+# Для нового исследования используйте tools.run_research выше.
+# Обучение историческим trainer:
 ./venv/bin/python train_binary_position_classifier.py \
     --crop-dir data/detector_crops \
     --labels-json data/tmj_position_labels.json \
@@ -129,7 +145,7 @@ tail -f experiments/detector_*/training.log
 
 ```bash
 # 1. Подготовка кропов (используя обученный детектор)
-python tools/auto_crop_from_detector.py --model experiments/detector_LATEST/best_model.pth
+# Paired heatmap ROI: см. docs/ai/data/README.md; regression weights несовместимы.
 
 # 2. Обучение 3D U-Net
 python train_3d.py --data_dir data/auto_crops --epochs 100

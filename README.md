@@ -6,6 +6,8 @@
 
 **Документация:** [AGENTS.md](AGENTS.md) (правила для агентов и оформления доков) · [MLService/README.md](MLService/README.md) (ML, карта папок) · [.github/README.md](.github/README.md) (CI)
 
+Для новых ML-экспериментов: [проверка данных и единый запуск](MLService/google_colab/README.md) · [подтверждаемый запуск DataSphere](MLService/docs/cloud-launch/README.md). Это отдельный исследовательский путь; HTTP-интеграция описана ниже.
+
 ## Назначение и поток данных
 
 Сценарий: загрузка **серии DICOM**, вызов ML, возврат координат / области для клиента.

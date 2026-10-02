@@ -2,10 +2,10 @@
 # Хуки срабатывают только для путей под MLService/ из списка ниже.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.10
+    rev: v0.16.10
     hooks:
-      - id: ruff
-        files: ^MLService/(tests/|services/|app\.py|training/(losses|datasets)/)
+      - id: ruff-check
+        files: ^MLService/(tests/|services/|app\.py$|training/(losses|datasets)/|training/(sagittal_binary_cv|tmj_position_label_table|roi_provenance)\.py$|training/utils/(binary_metrics|seed|datasphere_env)\.py$|models/(tmj_binary_position_classifier|blocks)\.py$|tools/(check_training_inputs|auto_crop_from_detector|run_research|datasphere_research|infer_research)\.py$)
       - id: ruff-format
-        files: ^MLService/(tests/|services/|app\.py|training/(losses|datasets)/)
+        files: ^MLService/(tests/|services/|app\.py$|training/(losses|datasets)/|training/(sagittal_binary_cv|tmj_position_label_table|roi_provenance)\.py$|training/utils/(binary_metrics|seed|datasphere_env)\.py$|models/(tmj_binary_position_classifier|blocks)\.py$|tools/(check_training_inputs|auto_crop_from_detector|run_research|datasphere_research|infer_research)\.py$)
 

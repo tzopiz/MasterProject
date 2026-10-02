@@ -16,7 +16,7 @@
 - Предусловие: модель содержит несколько выходов, loss использует один.
 - Действие: сверить протокол и отчёт.
 - Результат: результат относится только к обученным и оценённым задачам.
-- Покрытие: Модели и CV сверены статически; существуют тесты shapes, не качества.
+- Покрытие: [artifact regressions](../../../../tests/test_cv_artifacts.py) проверяют sagittal-only checkpoint, architecture reconstruction, threshold/decision contract и отказ несовместимой модели; это технические проверки, не качество.
 
 <a id="fr-ml-cls-group-independence"></a>
 ### FR-ML-CLS-GROUP-INDEPENDENCE — Групповая независимость
@@ -44,7 +44,7 @@
 - Предусловие: известны данные выбора checkpoint и вычисления метрик.
 - Действие: проверить протокол и формулировку вывода.
 - Результат: источник каждого решения указан; независимый результат заявлен только при отделённой оценке.
-- Покрытие: Текущая CV выбирает эпоху по тому же val AUC. [GAP-ML-VALIDATION-SELECTION](../../open-questions/README.md#gap-ml-validation-selection).
+- Покрытие: CV явно сообщает development_cv и model_selection_source=validation; regression — [test_sagittal_binary_cv.py](../../../../tests/test_sagittal_binary_cv.py). Binary выбирает эпоху по val AUC; shared multiclass — по val macro F1. [GAP-ML-VALIDATION-SELECTION](../../open-questions/README.md#gap-ml-validation-selection).
 
 <a id="fr-ml-cls-threshold-calibration"></a>
 ### FR-ML-CLS-THRESHOLD-CALIBRATION — Калибровка порога
@@ -58,7 +58,7 @@
 - Предусловие: заданы calibration records и обучающий dataset с augmentation.
 - Действие: повторить получение calibration predictions в оценочном режиме.
 - Результат: входы воспроизводимы; порог и его происхождение сохранены; итоговая выборка не участвовала.
-- Покрытие: CV использует augmented train loader; отдельной проверки источника нет. [GAP-ML-AUGMENTED-CALIBRATION](../../open-questions/README.md#gap-ml-augmented-calibration).
+- Покрытие: CV использует отдельный ordered unaugmented loader training records; [test_sagittal_binary_cv.py](../../../../tests/test_sagittal_binary_cv.py) проверяет повторимость predictions. Источник training_unaugmented записан в отчёт; независимая calibration cohort не подразумевается.
 
 <a id="fr-ml-cls-classification-report"></a>
 ### FR-ML-CLS-CLASSIFICATION-REPORT — Полный отчёт классификации
@@ -72,7 +72,7 @@
 - Предусловие: есть несбалансированные labels и константный классификатор.
 - Действие: сформировать отчёт рядом с baseline.
 - Результат: одноклассовые случаи и нераспознанные классы видны; метрики имеют определённую семантику.
-- Покрытие: Binary metrics покрыты существующими тестами; multiclass trainer сообщает преимущественно accuracy. [GAP-ML-INCOMPLETE-CLASS-REPORT](../../open-questions/README.md#gap-ml-incomplete-class-report).
+- Покрытие: [Binary metrics tests](../../../../tests/test_binary_metrics.py) и [CV regressions](../../../../tests/test_sagittal_binary_cv.py) проверяют explicit positive-F1, support, recalls и train-majority baseline; [Shared multiclass](../../../../tests/test_multiclass_research.py) проверяет per-class precision/recall/F1/support, macro F1, balanced accuracy и train-majority baseline; исторический whole-volume trainer остаётся отдельным путём. [GAP-ML-INCOMPLETE-CLASS-REPORT](../../open-questions/README.md#gap-ml-incomplete-class-report).
 
 <a id="fr-ml-cls-scientific-conclusion"></a>
 ### FR-ML-CLS-SCIENTIFIC-CONCLUSION — Сила научного вывода
@@ -86,4 +86,50 @@
 - Предусловие: есть неполный прогон, среднее/std и заявленная цель.
 - Действие: проверить итоговый вывод.
 - Результат: неполнота отмечена, std назван корректно, несогласованная цель остаётся открытой.
-- Покрытие: JSON содержит completion и std; целевой критерий не утверждён. [OQ-ML-QUALITY-CRITERION](../../open-questions/README.md#oq-ml-quality-criterion).
+- Покрытие: [artifact regressions](../../../../tests/test_cv_artifacts.py) проверяют private predictions→fold metrics→summary, protected run directory и failed snapshot с сохранённым completed fold. JSON содержит completion и population std; целевой критерий не утверждён. [OQ-ML-QUALITY-CRITERION](../../open-questions/README.md#oq-ml-quality-criterion).
+
+## Версионированная конфигурация исследовательского запуска
+
+Основной локальный runner и тонкий notebook используют один приватный JSON
+schema_version=1 с mode=binary либо multiclass, явными input_path/dataset_root/output_dir и
+параметрами существующей CV. Относительные пути разрешаются относительно config
+file; outputs отделены от входов, включая ancestor/descendant containment.
+Unknown keys/types, duplicate JSON, неверные явно заданные environment paths
+и неоднозначное auto-discovery блокируют зависимый этап без раскрытия values.
+Preflight проверяет canonical intake, paired ROI provenance и пригодность fold
+групп до создания модели/обучения. Отчёт готовности содержит только агрегаты;
+техническая готовность не подтверждает качество, применимость реальных меток
+или detector independence. Облачный запуск не входит в этот локальный runner.
+Приёмка: [TC-ML-READINESS-PREFLIGHT](../../features/dataset-readiness/README.md#tc-ml-readiness-preflight),
+[TC-ML-READINESS-RUN](../../features/dataset-readiness/README.md#tc-ml-readiness-run).
+
+
+Реализация: [единый runner](../../../../tools/run_research.py),
+[strict path helper](../../../../training/utils/datasphere_env.py),
+[config/preflight/CLI/notebook tests](../../../../tests/test_run_research.py) и
+[path regressions](../../../../tests/test_datasphere_env.py).
+Операторский config и команды: [runbook](../../../../google_colab/README.md).
+Проверка выполнена на synthetic CPU inputs, без живого DataSphere/GPU прогона.
+
+
+## Сагиттальный multiclass на per-side ROI
+
+Тот же research config принимает mode=multiclass, отображая исходные
+sagittal codes 1/2/3 в classes 0/1/2 central/anterior/posterior. Frontal 4/5/6
+остаётся отдельным optional intake contract; отсутствие метки не становится
+normal, неподготовленные frontal heads не выдаются. Binary defaults сохраняются.
+Multiclass использует три logits и CE, default augmentation none; пространственные
+flips/rotations без доказанного axis/remap блокируются. Patient folds требуют все
+три класса в train и validation. Model selection — validation macro F1, ties
+оставляют раннюю эпоху; development_cv не считается test, Youden не применяется.
+Отчёт включает per-class precision/recall/F1/support, confusion matrix, macro F1,
+balanced accuracy и train-derived majority baseline (ties lowest class index).
+Checkpoint и private rows явно задают mode/classes/argmax tie rule и preprocessing;
+CPU reload должен воспроизвести predictions и recomputation агрегатов.
+Приёмка: [TC-ML-READINESS-MODES](../../features/dataset-readiness/README.md#tc-ml-readiness-modes).
+
+
+Покрытие multiclass: [actualCPU/config/checkpoint/metrics/privacy tests](../../../../tests/test_multiclass_research.py).
+[Dataset](../../../../training/datasets/tmj_position_dataset.py), [ROI model/loader](../../../../models/tmj_binary_position_classifier.py)
+и [CV loop](../../../../training/sagittal_binary_cv.py) общие с binary; отдельного trainer нет.
+Synthetic CPU проверки не устанавливают качество или detector independence.
