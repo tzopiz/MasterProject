@@ -85,6 +85,19 @@ jobs:
           app.py
           training/losses
           training/datasets
+          training/sagittal_binary_cv.py
+          training/tmj_position_label_table.py
+          training/roi_provenance.py
+          training/utils/binary_metrics.py
+          training/utils/seed.py
+          training/utils/datasphere_env.py
+          models/tmj_binary_position_classifier.py
+          models/blocks.py
+          tools/check_training_inputs.py
+          tools/auto_crop_from_detector.py
+          tools/run_research.py
+          tools/datasphere_research.py
+          tools/infer_research.py
 
       - name: Ruff format (check only)
         if: ${{ needs.changes.outputs.mlservice == 'true' || needs.changes.outputs.workflows == 'true' || github.event_name == 'workflow_dispatch' }}
@@ -95,6 +108,19 @@ jobs:
           app.py
           training/losses
           training/datasets
+          training/sagittal_binary_cv.py
+          training/tmj_position_label_table.py
+          training/roi_provenance.py
+          training/utils/binary_metrics.py
+          training/utils/seed.py
+          training/utils/datasphere_env.py
+          models/tmj_binary_position_classifier.py
+          models/blocks.py
+          tools/check_training_inputs.py
+          tools/auto_crop_from_detector.py
+          tools/run_research.py
+          tools/datasphere_research.py
+          tools/infer_research.py
 
   mlservice-tests:
     name: MLService (Python ${{ matrix.python-version }}, pytest)
@@ -121,17 +147,63 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: MLService/requirements.txt
+          cache-dependency-path: |
+            MLService/requirements.txt
+            MLService/tools/research_cloud_requirements.txt
 
       - name: Install dependencies
         if: ${{ needs.changes.outputs.mlservice == 'true' || needs.changes.outputs.workflows == 'true' || github.event_name == 'workflow_dispatch' }}
         run: |
           python -m pip install --upgrade pip
+          # Keep this matrix CPU-only; broad requirements reuse these versions.
+          pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt pytest
 
       - name: Run tests
         if: ${{ needs.changes.outputs.mlservice == 'true' || needs.changes.outputs.workflows == 'true' || github.event_name == 'workflow_dispatch' }}
         run: python -m pytest tests/ -v --tb=short
+
+  mlservice-research-smoke:
+    name: MLService (Python 3.12, pinned research CPU smoke)
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ needs.changes.outputs.mlservice == 'true' || needs.changes.outputs.workflows == 'true' || github.event_name == 'workflow_dispatch' }}
+    defaults:
+      run:
+        working-directory: MLService
+    env:
+      CUDA_VISIBLE_DEVICES: ""
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: MLService/tools/research_cloud_requirements.txt
+      - name: Install isolated research CPU closure
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r tools/research_cloud_requirements.txt pytest==9.1.1
+      - name: Synthetic readiness smoke (no cloud transport)
+        run: >
+          python -m pytest -p no:cacheprovider
+          tests/test_canonical_training_inputs.py
+          tests/test_roi_provenance.py
+          tests/test_run_research.py
+          tests/test_sagittal_binary_cv.py
+          tests/test_cv_artifacts.py
+          tests/test_multiclass_research.py
+          tests/test_infer_research.py
+          tests/test_research_architecture.py
+          tests/test_datasphere_research.py
+          -q --tb=short
 
   backend-build:
     name: Backend (Swift build)

@@ -4,6 +4,10 @@
 
 ---
 
+## Единый исследовательский запуск
+
+[run_research.py](run_research.py) владеет private JSON schema_version=1: явные input_path/dataset_root/output_dir, mode=binary и параметры CV. CLI `python -m tools.run_research --config research.private.json --preflight` проверяет canonical индекс, ROI passports и patient folds без модели/записи output. Без --preflight запускает существующую CV; notebook использует те же callables. Полный config, команды, приватность артефактов и DataSphere ограничения — [runbook](../google_colab/README.md).
+
 ## ROI Annotation Tool
 
 Быстрый инструмент для разметки координат центров ВНЧС (левого и правого) на CBCT сканах.
@@ -26,7 +30,7 @@ source venv/bin/activate
 
 # 2. Запустить tool
 python tools/roi_annotation_tool.py \
-    "data/Baranova A/00000172/20190312/2.16.840.114421.82596.9605717572.9637253572" \
+    "data/synthetic_patient/study_01/series_01" \
     --output data/roi_annotations
 
 # 3. В GUI:
@@ -41,18 +45,18 @@ python tools/roi_annotation_tool.py \
 
 ---
 
-### 📋 Доступные DICOM сканы
+### 📋 Синтетические примеры DICOM путей
 
 ```bash
-# Список всех доступных серий для разметки:
+# Синтетические пути; это не список реальных исследований:
 
-1. data/Baranova A/00000172/20190312/2.16.840.114421.82596.9605717572.9637253572
-2. data/Baranova A/00000172/20200810/2.16.840.114421.82596.9650377753.9681913753
-3. data/Baranova A/00000172/20200812/2.16.840.114421.82596.9650538320.9682074320
-4. data/Baranova A/00000172/20210712/2.16.840.114421.82596.9679405039.9710941039
-5. data/Baranova A/00000172/20210715/2.16.840.114421.82596.9679667582.9711203582
+1. data/synthetic_patient/study_01/series_01
+2. data/synthetic_patient/study_02/series_01
+3. data/synthetic_patient/study_03/series_01
+4. data/synthetic_patient/study_04/series_01
+5. data/synthetic_patient/study_05/series_01
 
-Всего: 5 серий от одного пациента (разные даты)
+Пример: пять исследований одного синтетического пациента. Фактические пути остаются приватными.
 ```
 
 ---
@@ -99,14 +103,14 @@ python tools/roi_annotation_tool.py \
 
 ### 📁 Output Format
 
-**Файл:** `data/roi_annotations/{scan_id}_rois.json`
+Все значения ниже синтетические. **Файл:** `data/roi_annotations/{scan_id}_rois.json`
 
 ```json
 {
-  "scan_id": "2.16.840.114421.82596.9605717572.9637253572",
-  "dicom_dir": "data/Baranova A/00000172/...",
+  "scan_id": "series_01",
+  "dicom_dir": "data/synthetic_patient/study_01/series_01",
   "original_shape": [576, 768, 768],
-  "annotated_at": "2025-11-23T14:30:00",
+  "annotated_at": "2000-01-01T00:00:00",
   "left_tmj": {
     "center": [288, 350, 512],  // [z, y, x]
     "confidence": "manual"
