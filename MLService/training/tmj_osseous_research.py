@@ -7,11 +7,17 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
+import time
 from pathlib import Path
 
 import numpy as np
+import torch
+from sklearn.metrics import average_precision_score, confusion_matrix, roc_auc_score, roc_curve
 from sklearn.model_selection import train_test_split
+from torch import nn
+from torch.utils.data import DataLoader, Dataset
 
 TASK = 'tmj-osseous-author-roi-v1'
 DOI = '10.57760/sciencedb.37727'
@@ -259,3 +265,254 @@ def preflight(config):
                 partitions={p: dict(patients=len({records[i]['patient_id'] for i in ids}),
                     joints=len(ids), positive_joints=sum(records[i]['binary_target'] for i in ids))
                     for p, ids in groups.items()})
+
+
+class SliceBagClassifier(nn.Module):
+    """Shared 2D slice CNN plus mean bag pooling; no spatial slice adjacency."""
+    def __init__(self, outputs=1):
+        super().__init__()
+        self.features = nn.Sequential(nn.Conv2d(1, 8, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2, ceil_mode=True),
+            nn.Conv2d(8, 16, 3, padding=1), nn.ReLU(), nn.AdaptiveAvgPool2d(1))
+        self.head = nn.Linear(16, outputs)
+
+    def forward(self, images):
+        b, k, c, h, w = images.shape
+        features = self.features(images.reshape(b * k, c, h, w)).reshape(b, k, -1).mean(1)
+        return self.head(features)
+
+
+class _Bags(Dataset):
+    def __init__(self, records, paths, ids, shape, mode):
+        self.records, self.paths, self.ids, self.shape, self.mode = records, paths, ids, shape, mode
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, item):
+        i = self.ids[item]
+        record = self.records[i]
+        images = load_crop(self.paths[i], record['crop_sha256'], self.shape).astype(np.float32)
+        target = _targets(self.records, [i], self.mode)[0]
+        return torch.from_numpy(images), torch.from_numpy(target)
+
+
+def _deadline(start, config):
+    if time.monotonic() - start >= config['max_runtime_seconds']:
+        _fail('runtime_limit_reached')
+
+
+def _predict(model, loader, device, start, config):
+    model.eval()
+    values = []
+    with torch.no_grad():
+        for images, _ in loader:
+            _deadline(start, config)
+            values.append(torch.sigmoid(model(images.to(device))).cpu().numpy())
+    return np.concatenate(values)
+
+
+def _auc(target, probability):
+    if len(set(target.tolist())) < 2:
+        return None, None
+    return float(roc_auc_score(target, probability)), float(average_precision_score(target, probability))
+
+
+def _thresholds(targets, probabilities, supported=None):
+    thresholds = []
+    for label in range(targets.shape[1]):
+        y, p = targets[:, label], probabilities[:, label]
+        if (supported is not None and not supported[label]) or len(np.unique(y)) != 2:
+            thresholds.append(.5)
+            continue
+        fpr, tpr, candidates = roc_curve(y, p)
+        valid = np.isfinite(candidates) & (candidates <= 1)
+        choice = np.flatnonzero(valid)[np.argmax((tpr - fpr)[valid])]
+        thresholds.append(float(candidates[choice]))
+    return thresholds
+
+
+def _metrics(targets, probabilities, thresholds, supported=None):
+    per_label = []
+    for label in range(targets.shape[1]):
+        y, p = targets[:, label], probabilities[:, label]
+        auroc, auprc = _auc(y, p) if supported is None or supported[label] else (None, None)
+        tn, fp, fn, tp = confusion_matrix(y, p >= thresholds[label], labels=[0, 1]).ravel().tolist()
+        per_label.append(dict(supported_for_evaluation=auroc is not None, auroc=auroc, auprc=auprc, confusion=dict(tn=tn, fp=fp, fn=fn, tp=tp),
+            sensitivity=tp / (tp + fn) if tp + fn else None,
+            specificity=tn / (tn + fp) if tn + fp else None))
+    valid = [v for v in per_label if v['auroc'] is not None]
+    return dict(auroc=float(np.mean([v['auroc'] for v in valid])) if valid else None,
+                auprc=float(np.mean([v['auprc'] for v in valid])) if valid else None, labels=per_label)
+
+
+def _bootstrap(targets, probabilities, thresholds, patients, draws, supported=None, start=None, config=None):
+    """Resample patients with replacement, preserving all joints of each draw."""
+    if not draws:
+        return dict(requested_draws=0, valid_draws=0, auroc=None, auprc=None)
+    unique = sorted(set(patients))
+    groups = {p: np.flatnonzero(np.array(patients) == p) for p in unique}
+    rng, values = np.random.default_rng(42), []
+    for _ in range(draws):
+        if start is not None:
+            _deadline(start, config)
+        ids = np.concatenate([groups[p] for p in rng.choice(unique, len(unique), replace=True)])
+        metric = _metrics(targets[ids], probabilities[ids], thresholds, supported)
+        if metric['auroc'] is not None:
+            values.append([metric['auroc'], metric['auprc']])
+    return dict(requested_draws=draws, valid_draws=len(values),
+                auroc=np.quantile(np.array(values)[:, 0], [.025, .975]).tolist() if values else None,
+                auprc=np.quantile(np.array(values)[:, 1], [.025, .975]).tolist() if values else None)
+
+
+def _write(path, value):
+    path.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + '\n')
+    path.chmod(0o600)
+
+
+def load_checkpoint(path, device='cpu'):
+    try:
+        checkpoint = torch.load(path, map_location=device, weights_only=True)
+        metadata = checkpoint['metadata']
+        if metadata['bindings']['task'] != TASK or metadata['bindings']['codebook_commit'] != CODEBOOK:
+            _fail('incompatible_checkpoint')
+        model = SliceBagClassifier(1 if metadata['mode'] == 'binary' else 6).to(device)
+        model.load_state_dict(checkpoint['state_dict'])
+        model.eval()
+        return model, metadata
+    except ResearchError:
+        raise
+    except Exception:
+        _fail('invalid_checkpoint')
+
+
+def train(config):
+    """Select on validation, freeze thresholds, then evaluate test exactly once."""
+    try:
+        return _train(config)
+    except ResearchError:
+        raise
+    except Exception:
+        raise ResearchError('research_execution_failed') from None
+
+
+def _train(config):
+    start = time.monotonic()
+    config, index, paths, split, groups, binding = _prepare(config)
+    output = Path(config['output_dir'])
+    if output.exists() and any(output.iterdir()):
+        _fail('output_directory_not_empty')
+    output.mkdir(parents=True, exist_ok=True)
+    output.chmod(0o700)
+    _write(output / 'split.private.json', dict(task=TASK, seed=42, membership=split,
+                                              split_digest=binding['split_digest']))
+    torch.manual_seed(42)
+    np.random.seed(42)
+    torch.use_deterministic_algorithms(True)
+    if config['device'] == 'cuda' and not torch.cuda.is_available():
+        _fail('cuda_unavailable')
+    device = torch.device(config['device'])
+    records, preprocessing = index['records'], index['preprocessing']
+    shape = (preprocessing['slice_count'], 1, preprocessing['image_size'], preprocessing['image_size'])
+    datasets = {p: _Bags(records, paths, ids, shape, config['mode']) for p, ids in groups.items()}
+    loaders = {p: DataLoader(dataset, batch_size=config['batch_size'], shuffle=p == 'train',
+        generator=torch.Generator().manual_seed(42), num_workers=0) for p, dataset in datasets.items()}
+    targets = {p: _targets(records, ids, config['mode']) for p, ids in groups.items()}
+    prevalence = targets['train'].mean(0)
+    mask = (prevalence > 0) & (prevalence < 1)
+    validation_prevalence = targets['validation'].mean(0)
+    validation_mask = (validation_prevalence > 0) & (validation_prevalence < 1)
+    evaluation_mask = mask & validation_mask
+    label_limitations, threshold_sources = [], []
+    for train_ok, validation_ok in zip(mask.tolist(), validation_mask.tolist()):
+        label_limitations.append([reason for supported, reason in (
+            (train_ok, 'no_train_class_support'), (validation_ok, 'no_validation_class_support')) if not supported])
+        if not train_ok:
+            threshold_sources.append('fallback_0.5_no_train_support')
+        elif not validation_ok:
+            threshold_sources.append('fallback_0.5_no_validation_support')
+        else:
+            threshold_sources.append('validation_youden_j')
+    calibration_support = dict(train_supported_label_mask=mask.tolist(),
+        validation_supported_label_mask=validation_mask.tolist(), evaluation_supported_label_mask=evaluation_mask.tolist(),
+        threshold_sources=threshold_sources, label_limitations=label_limitations)
+    if not mask.any():
+        _fail('no_train_supported_labels')
+    weights = np.divide(1 - prevalence, prevalence, out=np.ones_like(prevalence), where=prevalence > 0)
+    loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weights, device=device), reduction='none')
+    label_mask = torch.tensor(mask, device=device, dtype=torch.float32)
+    model = SliceBagClassifier(targets['train'].shape[1]).to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
+    best_score, best_epoch, stale, history, best_state = -math.inf, 0, 0, [], None
+    for epoch in range(1, config['epochs'] + 1):
+        model.train()
+        for images, target in loaders['train']:
+            _deadline(start, config)
+            optimizer.zero_grad()
+            logits = model(images.to(device))
+            loss = (loss_fn(logits, target.to(device)) * label_mask).sum() / (len(images) * label_mask.sum())
+            loss.backward()
+            optimizer.step()
+        probabilities = _predict(model, loaders['validation'], device, start, config)
+        metric = _metrics(targets['validation'], probabilities, [.5] * len(prevalence), evaluation_mask)
+        score = metric['auroc'] if config['mode'] == 'binary' else metric['auprc']
+        if score is None:
+            _fail('no_validation_supported_labels')
+        history.append(dict(epoch=epoch, validation_selection_metric=score))
+        if score > best_score:
+            best_score, best_epoch, stale = score, epoch, 0
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        else:
+            stale += 1
+        if stale >= config['patience']:
+            break
+    model.load_state_dict(best_state)
+    validation = _predict(model, loaders['validation'], device, start, config)
+    thresholds = _thresholds(targets['validation'], validation, evaluation_mask)
+    metadata = dict(mode=config['mode'], selected_epoch=best_epoch, thresholds=thresholds,
+                    preprocessing=preprocessing, bindings=binding, train_prevalence=prevalence.tolist(),
+                    **calibration_support, config=config)
+    checkpoint = output / 'checkpoint.private.pt'
+    torch.save(dict(state_dict=best_state, metadata=metadata), checkpoint)
+    checkpoint.chmod(0o600)
+    reloaded, _ = load_checkpoint(checkpoint, str(device))
+    replay = _predict(reloaded, loaders['validation'], device, start, config)
+    if not np.array_equal(validation, replay):
+        _fail('checkpoint_reload_mismatch')
+    test = _predict(reloaded, loaders['test'], device, start, config)
+    baseline_validation = np.broadcast_to(prevalence, validation.shape)
+    baseline_thresholds = _thresholds(targets['validation'], baseline_validation, evaluation_mask)
+    baseline = np.broadcast_to(prevalence, test.shape)
+    test_metrics = {}
+    for name, probabilities, cutoffs in (('model', test, thresholds),
+            ('constant_train_prevalence', baseline, baseline_thresholds)):
+        result = _metrics(targets['test'], probabilities, cutoffs, evaluation_mask)
+        for label, limitations, source in zip(result['labels'], label_limitations, threshold_sources):
+            label['limitations'] = list(limitations)
+            label['threshold_source'] = source
+        result['bootstrap'] = _bootstrap(targets['test'], probabilities, cutoffs,
+            [records[i]['patient_id'] for i in groups['test']], config['bootstrap_draws'], evaluation_mask, start, config)
+        test_metrics[name] = result
+    predictions = []
+    # Reuse validation and test outputs; train inference is reporting only.
+    train_loader = DataLoader(datasets['train'], batch_size=config['batch_size'], shuffle=False)
+    partition_predictions = dict(train=_predict(reloaded, train_loader, device, start, config),
+                                 validation=validation, test=test)
+    for part, ids in groups.items():
+        for row, i in enumerate(ids):
+            predictions.append(dict(patient_id=records[i]['patient_id'], side=records[i]['side'],
+                partition=part, target=targets[part][row].tolist(), probability=partition_predictions[part][row].tolist()))
+    _deadline(start, config)
+    _write(output / 'predictions.private.json', dict(bindings=binding, records=predictions))
+    _write(output / 'manifest.private.json', dict(bindings=binding, metadata=metadata,
+        crop_bindings=[dict(patient_id=r['patient_id'], side=r['side'], crop_sha256=r['crop_sha256'],
+                           source_sha256=r['source_sha256'], annotation_sha256=r['annotation_sha256']) for r in records]))
+    report = dict(status='complete', task=TASK, mode=config['mode'], assessment_input='oracle_roi',
+        preprocessing=preprocessing, bindings=binding, selected_epoch=best_epoch,
+        selection_history=history, thresholds=thresholds, baseline_thresholds=baseline_thresholds,
+        train_prevalence=prevalence.tolist(), **calibration_support,
+        checkpoint_reload_verified=True, test=test_metrics,
+        interpretation='oracle ROI patient holdout; no clinical or localization validation')
+    _write(output / 'report.json', report)
+    _write(output / 'completion.json', dict(status='complete', bindings=binding,
+        artifact_digests={p.name: _sha(p) for p in sorted(output.iterdir()) if p.is_file()}))
+    return report
