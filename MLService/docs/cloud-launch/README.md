@@ -68,3 +68,27 @@ Jobs запускаются на отдельной Linux x86_64 VM, не в not
 `gt4.1` — предлагаемый один GPU ресурс, оператор может явно выбрать другой. Watchdog не ограничивает время установки/transfer, backend termination, storage, egress или деньги. Estimate равен предоставленной ставке × training window; setup compute/cache/logs/results/egress исключены и явно перечислены. [Бюджетные уведомления](https://yandex.cloud/en/docs/datasphere/concepts/budget) не выключают ресурсы; пустые project limits не доказывают денежный cap. Перед confirm актуализировать [цены](https://yandex.cloud/en/docs/datasphere/pricing), retention и квоты. [CLI/Jobs](https://yandex.cloud/en/docs/datasphere/concepts/jobs/cli) описывает default TTL 14 дней; нужен своевременный приватный download/cleanup. Launcher не создаёт dataset resources и не предполагает notebook mount.
 
 Синтетические проверки покрывают локальное staging/preflight/rekey, immutable digest, повтор/ambiguity, safe CLI/response boundaries, реальные tiny CPU train/status и timeout/failure subprocess. Формат single-entity execution/get JSON (dict с job_id/operation_id или id/status) и распаковка declared `results` ZIP в `results/training-status.json` дополнительно проверены локальными formatter/archive функциями установленного официального CLI, без сетевых запросов. Пины отдельно прошли синтетические проверки на macOS CPU; это не Linux CUDA проверка. Cloud transport заменён doubles; Jobs, upload, реальная Google Drive загрузка и Linux CUDA не запускались. Проверенный ранее read-only доступ к проекту не подтверждает право/ресурсы платного запуска. Геометрический паспорт не устанавливает anatomical ROI quality или независимость от detector-training пациентов.
+
+## Отдельный запуск костных изменений
+
+Для авторских osseous ROI используется `tools/datasphere_osseous.py`; position
+launcher выше не принимает эти коды. Контракт и границы: [osseous](../spec/functional/osseous/README.md).
+Сначала завершить `tools/prepare_tmj_od3d.py` и consumer preflight; partial
+индекс с `complete=false` или необработанными failures не допускается к staging.
+Конфигурация приватная, пути разрешаются относительно её файла.
+
+Из каталога MLService:
+
+```bash
+python -m tools.run_osseous_research --config /private/path/research.private.json --preflight
+python tools/datasphere_osseous.py prepare --config /private/path/research.private.json --bundle /private/path/bundle --project-id PROJECT_ID
+```
+
+Prepare не обращается к облаку. Перед confirm оператор проверяет SHA256
+плана, task/mode, partitions, байты upload, resource, runtime и цену на дату.
+Confirm отправляет ровно эти bytes; никаких raw DICOM или исходных CSV с
+демографией в payload нет. Изменение payload требует нового bundle.
+
+Текущая реализация/проверки: [007](../../../docs/changes/007-osseous-cloud/README.md).
+Готовый реальный bundle ещё не собран: полный прогон подготовки продолжается.
+Обучение и upload не запускались; стоимость не списывалась за наш запуск.
