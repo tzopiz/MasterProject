@@ -1,6 +1,6 @@
 # TMJ-OD3D V2 — проверка готовности публичной когорты
 
-Статус: in-progress. Run ID: tmj_od3d_feasibility_20261005.
+Статус: ready-to-launch. Run ID: tmj_od3d_feasibility_20261005.
 Дата протокола: 2026-10-05.
 [Изменение](../../../docs/changes/003-tmj-od3d-pilot/README.md).
 
@@ -178,3 +178,35 @@ optimizer step binary и multilabel на Torch 2.6.0 CPU. Это проверк�
 Официальные read-only DataSphere v2 project/community restrictions вернули
 ALLOW_JOBS=true и ALLOW_SPEC_GT_4_1=true. Это подтверждает разрешённость
 профиля, но не гарантирует свободную ёмкость GPU в момент платного launch.
+
+## Готовый запуск выбранной когорты
+
+Пользователь остановил добор: 148 source cases, два annotation_side_conflict
+исключены целиком по связанной с checkpoint review policy. Приняты 146 пациентов
+и 289 сторон; missing_annotation=1, missing_label=2 отражены в exclusions.
+Это prefix, не случайная репрезентативная выборка 1043 пациентов. Полный source
+complete=false сохраняется; выбранная curated cohort подготовлена полностью.
+
+Frozen split: train 102 пациента / 204 стороны, validation 22 / 43, test 22 / 42.
+Development-only три пациента вне test. Все шесть pathological labels имеют
+оба класса в train/validation. Test не использовался для выбора параметров и
+не оценивался техническим smoke. Binary и multilabel real preflight прошли.
+
+Два real bundle по ~61.9 MB собраны локально; exact manifests/bindings и frozen
+split совпадают. Настоящий установленный DataSphere CLI проверил job schema и
+paths. На двух development ROI в staged payload прошли forward/BCE/backward/step
+обоих режимов на Torch 2.6.0 CPU; это не измерение качества. GPU не запускался.
+Локальные проверки: 617 ML tests и 57 targeted curation tests пройдены.
+
+План каждого запуска: Python 3.12, Torch 2.6.0+cu118, CUDA 11.8 image,
+gt4.1 / один T4, batch 4, максимум 40 epochs / patience 8 / 4 часа обучения.
+На 2026-10-05 ставка [168.48 RUB/hour](https://yandex.cloud/ru/docs/datasphere/pricing),
+training-window estimate 673.92 RUB на режим; setup/storage/egress отдельно.
+Это не hard money cap. Read-only API подтвердил доступ к проекту и разрешения
+Jobs/gt4.1. Capacity GPU будет определяться в момент submit.
+
+Exact project/profile, приватные plan SHA256 и команды confirm сохранены вне
+Git. Остаётся подтверждение выбранного платного запуска. После завершения
+проверяются training status, completion bindings/artifact digests и модель
+сравнивается с constant train-prevalence baseline на frozen test один раз.
+Исследование готово к запуску; улучшение качества ещё не измерено.

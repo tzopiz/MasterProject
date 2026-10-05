@@ -90,5 +90,12 @@ Confirm отправляет ровно эти bytes; никаких raw DICOM �
 демографией в payload нет. Изменение payload требует нового bundle.
 
 Текущая реализация/проверки: [007](../../../docs/changes/007-osseous-cloud/README.md).
-Готовый реальный bundle ещё не собран: полный прогон подготовки продолжается.
+Два реальных bundle выбранной пользователем когорты готовы: 148 source cases,
+146 retained patients / 289 sides. Оба real preflight, frozen split, staged CPU
+step и официальный CLI config validation пройдены; scope и evidence в
+[009](../../../docs/changes/009-bounded-cohort/README.md). Source.complete=false
+сохранён; полный релиз не выдаётся за полученный. Для остановленного checkpoint
+нужна явная bounded policy `cohort={kind:archive-prefix, source_patient_count,
+source_end_offset}` в `curate_tmj_od3d.py`, связанная с SHA256 source state и
+каждым reviewed failure. Публичных patient rows в документах нет.
 Обучение и upload не запускались; стоимость не списывалась за наш запуск.
