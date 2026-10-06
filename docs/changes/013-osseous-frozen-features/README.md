@@ -1,6 +1,6 @@
 # 013 — Reusable frozen osseous features
 
-Статус: open
+Статус: done
 
 ## Проблема и целевое изменение
 
@@ -40,7 +40,27 @@ orchestration — следующая самостоятельная задача
 
 ## Результаты
 
-2026-10-06: пункт1 поручен отдельному gpt-6.1-sol/high агенту; only two new
-module/test paths, scope≈400handwrittenlines; no CLI/cloud/privatecohort work.
-Приёмка пока не подтверждена. Приватные research результаты доступны только
-агрегатами в [реестре экспериментов](../../../MLService/experiments/README.md).
+2026-10-06: все четыре пункта выполнены. Новые module/test —223/271 строк после repo formatter;
+31 synthetic test проходит без private cohort/download. Independent review
+закрыт на SHA256 module5f0f5dd0ed3d0f3f7605d3b1a7ec120bf96213e2a8b66ffa7455c8ddf5128f03,
+tests a8bd28893e74534dbe9c464fb6e45d8e90b56ae1ae772a472f24fab7a9275b08.
+
+Фактические проверки:
+- `PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=2 MLService/docs/ai/tasks/GH-85/cloud-pins-venv/bin/python -m pytest -q -p no:cacheprovider MLService/tests/test_tmj_osseous_features.py` →31passed (peer0,98s).
+- Ruff check module/tests →passed; `git diff --check` →passed.
+- `python3 scripts/check_specs.py` и `--self-test` →passed.
+- Root private hash/order-bound replay: один TRAIN crop →точное совпадение512
+  features; fullTRAIN C0,01 head →точное совпадение43 сохранённых validation
+  probabilities (maxdifference0),0,80s; test inference=false.
+- Permanent FR/TC-ML-OSSEOUS-FEATURES, API navigation и traceability обновлены.
+
+Synthetic проверки и replay подтверждают recipe compatibility. Public CLI и
+orchestration остаются отдельной задачей; API не обещает clinical readiness.
+Приватные research результаты доступны только агрегатами в
+[реестре экспериментов](../../../MLService/experiments/README.md).
+
+CI выявил только форматирование новых tests; все три Python3.10/3.11/3.12
+pytest jobs и pinnedCPU smoke прошли. Formatter применён к новым module/tests,
+AST до/после точно совпал;31 focused tests повторно passed. Новые SHA:
+module1a14a2f9ea097d18f03e63f497b1f4e924a417116a6e636ca7d0f9cbfd3ae55e,
+tests d2fd10267522bd1d3431336c77e05453f501f00ea1c78a7c4df7d53637e14ab3.

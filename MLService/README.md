@@ -285,4 +285,5 @@ default `global_mean` сохраняет прежнее поведение. Кр
 AUROC0,727 (source1510,571), balancedaccuracy0,659. Это exploratory authorROI
 результаты: validation ранее использовалась, а test для этих экспериментов не
 открывался. [Протоколы и текущий статус](experiments/README.md#публичная-когорта-без-новой-разметки).
-Модели/признаки приватны; локальные runner пока не являются repo entrypoint.
+Модели/признаки приватны. [Offline feature/head API](training/README.md#frozen-osseous-features)
+воспроизводит рецепт; public CLI/CV orchestration пока отсутствуют.

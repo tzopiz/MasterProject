@@ -29,3 +29,17 @@
 или `python -m tools.run_osseous_research --config <private.json> --develop`
 из MLService. Нужен `split_path` с уже закреплённым patient split. Этот режим
 не открывает test crops и явно обозначает validation результаты как development.
+
+## Frozen osseous features
+
+[Offline API](tmj_osseous_features.py): `load_backbone(local_weights)`,
+`extract_features(backbone, crop)`, `fit_head(X, y, mode="binary", C=.01)`
+и `predict_head(bundle, X)`. Для multilabel передайте `mode="multilabel"`
+и targets[N,6] в порядке авторских кодов1–6. Caller передаёт только fit-строки
+при обучении scaler/head и хранит bundle приватно. Public CLI/CV orchestration
+для этого пути ещё не реализованы; scratch development CLI выше имеет другой
+контракт. [Форматы и приёмка](../docs/spec/functional/osseous/README.md#fr-ml-osseous-features).
+
+Для extractor нужны совместимые PyTorch/torchvision и локальные официальные
+ResNet18 ImageNet1K V1 weights с указанным в контракте полным checksum;
+автоматической установки/download нет. Synthetic suite не требует этих весов.
