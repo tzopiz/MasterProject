@@ -210,3 +210,16 @@ Git. Остаётся подтверждение выбранного платн
 проверяются training status, completion bindings/artifact digests и модель
 сравнивается с constant train-prevalence baseline на frozen test один раз.
 Исследование готово к запуску; улучшение качества ещё не измерено.
+
+## Первый разрешённый запуск 2026-10-06
+
+Пользователь подтвердил бинарный запуск на T4; метрики пока не получены.
+Два локальных отказа CLI произошли до create; первый cloud job завершился
+ERROR до training из-за отсутствия Python во внешнем CUDA image. Новый
+системный контейнер выделен, установка dependencies началась. Логи подтверждают
+Python 3.10.12 вместо requested 3.12; дальнейшие планы используют 3.10 явно.
+Torch 2.6.0+cu118, NumPy 2.1.3, SciPy 1.14.1, scikit-learn 1.6.1, GPU,
+training protocol, patient partitions и all input/split bindings прежние.
+Частные receipts, platform logs и фактическая версия сохранены вне Git.
+Status EXECUTING означает выполнение облачного задания, не успешное обучение.
+Исправление упаковки и runtime: [010](../../../docs/changes/010-datasphere-requirements/README.md).

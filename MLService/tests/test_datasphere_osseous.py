@@ -42,8 +42,9 @@ def test_local_staging_keeps_frozen_patient_members_and_osseous_mapping(tmp_path
     assert plan["training_window_compute_estimate"] == 168.48 * 30 / 3600
     assert _check_bundle(bundle, plan["plan_sha256"])["task"] == "tmj-osseous-author-roi-v1"
     job = json.loads((bundle / "job.yaml").read_text())
-    assert job["env"]["docker"] == {"image": "nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04"}
-    assert plan["docker_image"] == "nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04"
+    assert job["env"]["docker"] == "system-python-3-10"
+    assert plan["docker_image"] == "system-python-3-10"
+    assert job["env"]["python"]["version"] == plan["python"] == "3.10"
     assert "torch==2.6.0+cu118" in (bundle / "payload/requirements.txt").read_text()
 
 

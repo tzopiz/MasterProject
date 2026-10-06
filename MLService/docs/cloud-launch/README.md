@@ -102,7 +102,7 @@ source_end_offset}` в `curate_tmj_od3d.py`, связанная с SHA256 source
 
 Официальный CLI разбирает каждую непустую строку requirements-file как package
 specifier либо поддерживаемый pip flag; комментарии `#` здесь запрещены.
-Osseous requirements используют Python 3.12 и Torch 2.6.0+cu118 с CUDA 11.8,
+Osseous requirements используют Python 3.10 и Torch 2.6.0+cu118 с CUDA 11.8,
 совместимой с выбранным контейнером. Пояснения находятся в README, а не в
 requirements-file. Регрессия и offline parser проверены в [010](../../../docs/changes/010-datasphere-requirements/README.md).
 
@@ -110,3 +110,14 @@ CLI 0.10.0 не сохраняет пустой manual `local-paths`: osseous jo
 один launcher `payload/tools/run_osseous_research.py` из проверенного manifest.
 Его повторная упаковка как local module учтена в upload estimate; новые
 данные или каталоги вне payload не добавляются.
+
+Osseous job использует документированный системный контейнер
+`system-python-3-10` с Python/Conda, затем manual env запрашивает Python 3.10
+и прежние pinned requirements. Явный внешний `nvidia/cuda` image не включает
+DataSphere дополнения и завершился ERROR до обучения с Python binary not found.
+Подробнее: [официальные Docker images](https://yandex.cloud/en/docs/datasphere/concepts/jobs/docker).
+
+В первом system job платформа использовала Python 3.10.12 вместо запрошенного
+3.12 и выдала предупреждение; следующий plan указывает 3.10 явно. Версия
+конфигурации сама по себе не доказывает runtime: проверять platform log.
+Остальные pinned ML-пакеты прежние; CI matrix покрывает Python 3.10.
