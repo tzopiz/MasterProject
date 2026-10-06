@@ -14,6 +14,7 @@ MLService — самостоятельный логический компоне
 | [Данные](functional/data/README.md) | Идентичность, метки, группировка, происхождение |
 | [Локализация](functional/localization/README.md) | Стороны, координаты, ROI и оценка центров |
 | [Классификация](functional/classification/README.md) | Задачи, разделение оценки и подбора, отчёт |
+| [Костные изменения по открытой разметке](functional/osseous/README.md) | Отдельные binary/multilabel targets, авторские ROI, frozen holdout и cloud |
 | [Сегментация](functional/segmentation/README.md) | Маски, совместимость обработки и границы выводов |
 | [Нефункциональные требования](nonfunctional/README.md) | Воспроизводимость, приватность, безопасность |
 | [Интеграция](integration/README.md) | ML-граница обмена с приложением |

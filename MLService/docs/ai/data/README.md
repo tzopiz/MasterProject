@@ -117,3 +117,13 @@ fuzzy downloader и inline notebook join не участвуют в canonical in
 Проверка ROI passport выполняется общим helper в preflight и выбранном research runner;
 готовность размеров/групп и протокола runner проверяется самим runner. Реальные identity, применимость врачебных меток и межисточниковые
 пересечения остаются ответственностью передаваемого mapping.
+
+## Независимый osseous intake
+
+Опубликованная разметка TMJ-OD3D обрабатывается отдельно: [контракт](../../spec/functional/osseous/README.md),
+[CSV/JSON parser](../../../training/tmj_od3d_inputs.py),
+[подготовка ROI](../../../training/tmj_od3d_images.py). Это не schema-v1 position
+intake и не проектные коды 1–6 положения. Норма явно 0; сочетания патологий
+сохраняются, пропуск исключается. В cloud передаются только подготовленные
+NPZ и приватный index, без DICOM headers, sex/age или исходных имён.
+Patient-level hashes, метки и predictions всё равно остаются приватными.
