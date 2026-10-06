@@ -8,7 +8,7 @@
 | [006 — Обучение](006-od3d-training/README.md) | done | Оба real preflight, frozen split и staged CPU step пройдены |
 | [007 — DataSphere](007-osseous-cloud/README.md) | done | Два реальных immutable пакета готовы; платный запуск ожидает подтверждения |
 | [008 — Техническая курация](008-od3d-curation/README.md) | done | Два source failures явно исключены; policy/provenance сохранены |
-| [010 — CLI requirements](010-datasphere-requirements/README.md) | done | CLI packaging и system Python bootstrap проверены; training outcome отдельно |
+| [010 — CLI requirements](010-datasphere-requirements/README.md) | ready | Исправление global site-packages конфликта через isolated venv проверяется |
 | [009 — Выбранная когорта](009-bounded-cohort/README.md) | done | 146 пациентов / 289 сторон, оба режима готовы к запуску |
 
 Требования нового пути: [спецификация костных изменений](../../MLService/docs/spec/functional/osseous/README.md).

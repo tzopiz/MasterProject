@@ -44,7 +44,10 @@ def test_local_staging_keeps_frozen_patient_members_and_osseous_mapping(tmp_path
     job = json.loads((bundle / "job.yaml").read_text())
     assert job["env"]["docker"] == "system-python-3-10"
     assert plan["docker_image"] == "system-python-3-10"
-    assert job["env"]["python"]["version"] == plan["python"] == "3.10"
+    assert "python" not in job["env"]
+    assert plan["python"] == "3.10"
+    assert "tools/osseous_cloud_bootstrap.sh" in plan["manifest"]
+    assert job["cmd"].startswith("bash payload/tools/osseous_cloud_bootstrap.sh ")
     assert "torch==2.6.0+cu118" in (bundle / "payload/requirements.txt").read_text()
 
 

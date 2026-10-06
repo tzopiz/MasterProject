@@ -223,3 +223,8 @@ training protocol, patient partitions и all input/split bindings прежние
 Частные receipts, platform logs и фактическая версия сохранены вне Git.
 Status EXECUTING означает выполнение облачного задания, не успешное обучение.
 Исправление упаковки и runtime: [010](../../../docs/changes/010-datasphere-requirements/README.md).
+
+После system bootstrap проявился global pandas/NumPy ABI конфликт; worker
+не начал обучение и job завершился ERROR. Финальный запуск использует чистую
+venv из plain контейнера, без наследования site-packages; legacy inputs/split
+не меняются. Тестовые данные в двух ошибочных job не оценивались.

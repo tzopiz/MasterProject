@@ -100,24 +100,21 @@ source_end_offset}` в `curate_tmj_od3d.py`, связанная с SHA256 source
 каждым reviewed failure. Публичных patient rows в документах нет.
 Обучение и upload не запускались; стоимость не списывалась за наш запуск.
 
-Официальный CLI разбирает каждую непустую строку requirements-file как package
-specifier либо поддерживаемый pip flag; комментарии `#` здесь запрещены.
-Osseous requirements используют Python 3.10 и Torch 2.6.0+cu118 с CUDA 11.8,
-совместимой с выбранным контейнером. Пояснения находятся в README, а не в
-requirements-file. Регрессия и offline parser проверены в [010](../../../docs/changes/010-datasphere-requirements/README.md).
+Osseous job использует plain системный контейнер `system-python-3-10` и
+[bootstrap](../../tools/osseous_cloud_bootstrap.sh), включённый в immutable
+payload. Bootstrap проверяет базовый Python 3.10, очищает PYTHONPATH/PYTHONHOME,
+создаёт venv без system-site-packages и pip, затем устанавливает прежние
+пины через `pip --python .tmj-runtime`. Это [поддерживаемый способ pip](https://pip.pypa.io/en/stable/topics/python-option/)
+для окружения без ensurepip. `env.python` не объявляется: platform pip поверх
+системных библиотек вызвал pandas/NumPy ABI конфликт в реальном job.
 
-CLI 0.10.0 не сохраняет пустой manual `local-paths`: osseous job объявляет
-один launcher `payload/tools/run_osseous_research.py` из проверенного manifest.
-Его повторная упаковка как local module учтена в upload estimate; новые
-данные или каталоги вне payload не добавляются.
+После установки isolated Python импортирует Torch/NumPy/SciPy/sklearn и
+проверяет CUDA; версии печатаются в приватный platform log. Только затем
+запускается прежний worker. Никакие данные вне payload не объявлены; дополнительного
+local-module upload нет. Перечень package specifiers/flags requirements
+остаётся без комментариев для совместимости с CLI parser.
 
-Osseous job использует документированный системный контейнер
-`system-python-3-10` с Python/Conda, затем manual env запрашивает Python 3.10
-и прежние pinned requirements. Явный внешний `nvidia/cuda` image не включает
-DataSphere дополнения и завершился ERROR до обучения с Python binary not found.
-Подробнее: [официальные Docker images](https://yandex.cloud/en/docs/datasphere/concepts/jobs/docker).
-
-В первом system job платформа использовала Python 3.10.12 вместо запрошенного
-3.12 и выдала предупреждение; следующий plan указывает 3.10 явно. Версия
-конфигурации сама по себе не доказывает runtime: проверять platform log.
-Остальные pinned ML-пакеты прежние; CI matrix покрывает Python 3.10.
+Системный контейнер выбран по [официальной документации](https://yandex.cloud/en/docs/datasphere/concepts/jobs/docker);
+реальный журнал подтвердил Python 3.10.12. Запрошенная версия в job config
+сама по себе не доказывает runtime. История отказов и проверки —
+[010](../../../docs/changes/010-datasphere-requirements/README.md).

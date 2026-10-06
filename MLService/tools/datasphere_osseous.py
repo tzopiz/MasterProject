@@ -37,7 +37,8 @@ from training.tmj_osseous_research import CODEBOOK, TASK, build_split, load_conf
 
 SOURCE_FILES = ('training/tmj_osseous_research.py',
                 'tools/run_osseous_research.py',
-                'tools/datasphere_osseous.py','tools/datasphere_research.py')
+                'tools/datasphere_osseous.py','tools/datasphere_research.py',
+                'tools/osseous_cloud_bootstrap.sh')
 MAX_INDEX_BYTES=16*1024**2
 DOCKER_IMAGE='system-python-3-10'
 
@@ -100,14 +101,11 @@ def prepare_bundle(config_path,bundle_dir,*,project_id,profile='tmj-master',reso
         if staged_summary['bindings']['split_digest']!=summary['bindings']['split_digest']:
             raise CloudLaunchError('staged_split_changed')
         manifest=_manifest(payload);size=sum(row['bytes'] for row in manifest.values())
-        # CLI 0.10.0 loses an empty manual local-paths list; declare existing code.
-        local_module='payload/tools/run_osseous_research.py'
-        size+=(bundle/local_module).stat().st_size
         if size>5*1024**3:raise CloudLaunchError('upload_size_limit')
         runtime=config['max_runtime_seconds']
-        job={'name':'tmj-osseous-research','cmd':f'python3 payload/tools/datasphere_osseous.py worker --config payload/research.private.json --max-runtime-seconds {runtime}',
+        job={'name':'tmj-osseous-research','cmd':f'bash payload/tools/osseous_cloud_bootstrap.sh payload/research.private.json {runtime}',
              'inputs':['payload'],'outputs':['results'],'cloud-instance-types':[resource],
-             'env':{'docker':DOCKER_IMAGE,'python':{'type':'manual','version':'3.10','requirements-file':'payload/requirements.txt','local-paths':[local_module]}}}
+             'env':{'docker':DOCKER_IMAGE}}
         _write(bundle/'job.yaml',job)
         plan={'schema_version':1,'task':TASK,'project_id':project_id,'profile':profile,
               'resource':resource,'python':'3.10','docker_image':DOCKER_IMAGE,'manifest':manifest,'job_sha256':_hash_file(bundle/'job.yaml'),
