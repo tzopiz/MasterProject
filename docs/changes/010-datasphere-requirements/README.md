@@ -33,3 +33,8 @@
 ## Результат
 
 Историческая manual установка дошла до imports и завершилась pandas/NumPy ABI error. Финальный plain bootstrap проверен локально: venv --without-pip плюс pip --python работает, synthetic PYTHONPATH с загрязняющим pandas не наследуется. Bash syntax и 21 cloud test прошли. Реальный isolated job подтвердил Python 3.10.12, Torch 2.6.0+cu118, NumPy 2.1.3, SciPy 1.14.1, scikit-learn 1.6.1, CUDA 11.8 и cuda_available=true без Traceback. Runtime сведён с plan, приватные receipts сохранены. Training completion и качество не являются приёмкой bootstrap и пока не объявляются. Совместимость локальной упаковки исправлена; training, dataset, split, версии ML-пакетов и цена прежние; Python baseline явно согласован с наблюдаемым системным runtime 3.10. Платный запуск отдельного нового bundle разрешён пользователем; этот документ не объявляет облачное обучение успешным.
+
+Реальная end-to-end проверка isolated launch: provider SUCCESS, training
+complete/exit 0, results_ready=true, completion/artifact digests и frozen
+bindings проверены после приватного download. Метрики первого run ниже
+baseline; результат отдельно в [протоколе](../../../MLService/experiments/tmj_od3d_feasibility_20261005/README.md#результат-первого-binary-training-2026-10-06).
