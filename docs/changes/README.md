@@ -2,6 +2,8 @@
 
 | Изменение | Статус | Результат |
 |---|---|---|
+| [015 — Layer4 fine-tuning](015-osseous-layer4/README.md) | open | Preregistered TRAIN-only гипотеза; library и GPU acceptance впереди |
+| [014 — A100 staging](014-osseous-a100/README.md) | done | Выбор g2.1, resource-specific quote/date;42 offline checks |
 | [013 — Frozen features](013-osseous-frozen-features/README.md) | done | Offline feature/head API,31 synthetic checks и точный private replay; CLI отдельно |
 | [012 — Архитектура](012-osseous-architecture/README.md) | done | Явный experimental spatial_head; default и legacy provenance сохранены |
 | [011 — Development](011-osseous-development/README.md) | done | Train/validation изоляция, stable loss, 51 checks; TRAIN-only диагностика отдельно |

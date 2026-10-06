@@ -216,3 +216,10 @@ pip install --upgrade pydicom
 | Прочее | `anonymize_labels.py`, `dicom_phi_strip.py`, `create_portable_tool.py` |
 
 Полный сценарий пайплайна: [../README.md](../README.md).
+
+Для osseous DataSphere staging `prepare --resource g2.1` выбирает один A10080GB;
+по умолчанию сохраняется `gt4.1`/T4. `--hourly-price` позволяет передать актуальную
+положительную finite quote; без override rate/date берутся по ресурсу.
+[Контракт](../docs/spec/functional/osseous/README.md#fr-ml-osseous-cloud).
+Prepare не выполняет cloud IO; поддержка A100 не означает выполненное обучение
+или гарантированный предел счёта. Scratch training workflow остаётся прежним.
