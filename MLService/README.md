@@ -277,5 +277,12 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]
 границы оценки и следующий этап — [протокол](experiments/tmj_od3d_feasibility_20261005/README.md#результат-первого-binary-training-2026-10-06).
 
 Osseous research config теперь допускает экспериментальный `architecture="spatial_head"`;
-default `global_mean` сохраняет прежнее поведение. Вариант ещё не выбран CV;
-обобщение неизвестно. Контракт и приёмка: [архитектура](docs/spec/functional/osseous/README.md#fr-ml-osseous-architecture).
+default `global_mean` сохраняет прежнее поведение. Критерий TRAIN-only CV не выполнен;
+вариант не выбран для validation. Контракт и приёмка: [архитектура](docs/spec/functional/osseous/README.md#fr-ml-osseous-architecture).
+
+Дальнейшие TRAIN-only experiments: frozen ResNet18 features и nested выбор
+регуляризации дали mean CV AUROC0,688; fullTRAIN-selected C0,01 на validation
+AUROC0,727 (source1510,571), balancedaccuracy0,659. Это exploratory authorROI
+результаты: validation ранее использовалась, а test для этих экспериментов не
+открывался. [Протоколы и текущий статус](experiments/README.md#публичная-когорта-без-новой-разметки).
+Модели/признаки приватны; локальные runner пока не являются repo entrypoint.
