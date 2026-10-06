@@ -2,6 +2,7 @@
 
 | Изменение | Статус | Результат |
 |---|---|---|
+| [017 — Multilabel](017-osseous-multilabel/README.md) | open | Один TRAIN-only CPU протокол, шесть output и явная support |
 | [016 — Max pooling](016-osseous-max-pooling/README.md) | done | CPU experiment завершён, max16 отклонён; reviewed результаты опубликованы в PR115 |
 | [015 — Layer4 fine-tuning](015-osseous-layer4/README.md) | done | Layer4 library,31 CPU checks/private replay; PR113 опубликован, GPU CV отдельно |
 | [014 — A100 staging](014-osseous-a100/README.md) | done | Выбор g2.1, resource-specific quote/date;42 offline checks |
