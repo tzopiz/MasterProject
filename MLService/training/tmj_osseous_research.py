@@ -70,12 +70,19 @@ def load_config(config_path):
     return _config(config)
 
 
+def _architecture(name):
+    if not isinstance(name, str) or name not in ('global_mean', 'spatial_head'):
+        _fail('unsupported_architecture')
+    return name
+
+
 def _config(value):
     if not isinstance(value, dict):
         return load_config(value)
-    config = dict(mode='binary', epochs=40, patience=8, batch_size=4, seed=42,
+    config = dict(mode='binary', architecture='global_mean', epochs=40, patience=8, batch_size=4, seed=42,
                   learning_rate=.001, max_runtime_seconds=14400, bootstrap_draws=200, device='cpu')
     config.update(copy.deepcopy(value))
+    _architecture(config['architecture'])
     for key in ('index_path', 'output_dir'):
         if not isinstance(config.get(key), str) or not config[key]:
             _fail('missing_config_path')
@@ -273,6 +280,8 @@ def _prepare(value, *, development=False):
     binding = dict(task=TASK, mode=config['mode'], codebook_commit=CODEBOOK,
                    input_digest=_sha(index_path), split_digest=_digest(split),
                    target_mapping_digest=_digest({'normal': 0, 'pathology_codes': [1, 2, 3, 4, 5, 6]}))
+    if config['architecture'] != 'global_mean':
+        binding['architecture'] = config['architecture']
     if development:
         groups.pop('test')
         binding['evaluation_scope'] = 'development'
@@ -282,7 +291,7 @@ def _prepare(value, *, development=False):
 def preflight(config, *, development=False):
     config, index, _, _, groups, binding = _prepare(config, development=development)
     records = index['records']
-    return dict(status='ready', task=TASK, mode=config['mode'], assessment_input='oracle_roi',
+    return dict(status='ready', task=TASK, mode=config['mode'], architecture=config['architecture'], assessment_input='oracle_roi',
                 preprocessing=index['preprocessing'], bindings=binding,
                 partitions={p: dict(patients=len({records[i]['patient_id'] for i in ids}),
                     joints=len(ids), positive_joints=sum(records[i]['binary_target'] for i in ids))
@@ -301,6 +310,19 @@ class SliceBagClassifier(nn.Module):
         b, k, c, h, w = images.shape
         features = self.features(images.reshape(b * k, c, h, w)).reshape(b, k, -1).mean(1)
         return self.head(features)
+
+
+class SpatialSliceBagClassifier(SliceBagClassifier):
+    """Experimental spatial head; no independent generalization evidence."""
+    def __init__(self, outputs=1):
+        super().__init__(outputs)
+        self.features[-1] = nn.AdaptiveAvgPool2d((4, 4))
+        self.head = nn.Sequential(nn.Linear(16 * 4 * 4, 32), nn.ReLU(), nn.Linear(32, outputs))
+
+
+def build_model(outputs=1, architecture='global_mean'):
+    name = _architecture(architecture)
+    return (SliceBagClassifier if name == 'global_mean' else SpatialSliceBagClassifier)(outputs)
 
 
 class _Bags(Dataset):
@@ -401,7 +423,14 @@ def load_checkpoint(path, device='cpu'):
         metadata = checkpoint['metadata']
         if metadata['bindings']['task'] != TASK or metadata['bindings']['codebook_commit'] != CODEBOOK:
             _fail('incompatible_checkpoint')
-        model = SliceBagClassifier(1 if metadata['mode'] == 'binary' else 6).to(device)
+        architecture = _architecture(metadata.get('architecture', 'global_mean'))
+        configured = _architecture(metadata.get('config', {}).get('architecture', 'global_mean'))
+        bound = _architecture(metadata['bindings'].get('architecture', 'global_mean'))
+        if architecture != configured or architecture != bound:
+            _fail('checkpoint_architecture_mismatch')
+        if metadata['mode'] not in ('binary', 'multilabel'):
+            _fail('incompatible_checkpoint')
+        model = build_model(1 if metadata['mode'] == 'binary' else 6, architecture).to(device)
         model.load_state_dict(checkpoint['state_dict'])
         model.eval()
         return model, metadata
@@ -466,7 +495,7 @@ def _train(config, *, development=False):
     weights = np.divide(1 - prevalence, prevalence, out=np.ones_like(prevalence), where=prevalence > 0)
     loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weights, device=device), reduction='none')
     label_mask = torch.tensor(mask, device=device, dtype=torch.float32)
-    model = SliceBagClassifier(targets['train'].shape[1]).to(device)
+    model = build_model(targets['train'].shape[1], config['architecture']).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
     best_score, best_epoch, stale, history, best_state = -math.inf, 0, 0, [], None
     for epoch in range(1, config['epochs'] + 1):
@@ -504,7 +533,7 @@ def _train(config, *, development=False):
     model.load_state_dict(best_state)
     validation = _predict(model, loaders['validation'], device, start, config)
     thresholds = _thresholds(targets['validation'], validation, evaluation_mask)
-    metadata = dict(mode=config['mode'], evaluation_scope='development' if development else 'holdout', selected_epoch=best_epoch, thresholds=thresholds,
+    metadata = dict(mode=config['mode'], architecture=config['architecture'], evaluation_scope='development' if development else 'holdout', selected_epoch=best_epoch, thresholds=thresholds,
                     preprocessing=preprocessing, bindings=binding, train_prevalence=prevalence.tolist(),
                     **calibration_support, config=config)
     checkpoint = output / 'checkpoint.private.pt'
@@ -546,7 +575,7 @@ def _train(config, *, development=False):
     _write(output / 'manifest.private.json', dict(bindings=binding, metadata=metadata,
         crop_bindings=[dict(patient_id=r['patient_id'], side=r['side'], crop_sha256=r['crop_sha256'],
                            source_sha256=r['source_sha256'], annotation_sha256=r['annotation_sha256']) for r in records if r['patient_id'] in active_patients]))
-    report = dict(status='complete', task=TASK, mode=config['mode'], assessment_input='oracle_roi',
+    report = dict(status='complete', task=TASK, mode=config['mode'], architecture=config['architecture'], assessment_input='oracle_roi',
         preprocessing=preprocessing, bindings=binding, selected_epoch=best_epoch,
         selection_history=history, thresholds=thresholds, baseline_thresholds=baseline_thresholds,
         train_prevalence=prevalence.tolist(), **calibration_support,

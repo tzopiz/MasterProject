@@ -130,6 +130,10 @@ def artifacts_complete(directory, expected_bindings=None):
         if completion['bindings']!=report['bindings'] or report.get('checkpoint_reload_verified') is not True:
             return False
         bindings=report['bindings']
+        architecture=report.get('architecture','global_mean')
+        if (architecture not in ('global_mean','spatial_head')
+            or bindings.get('architecture','global_mean')!=architecture):
+            return False
         if (bindings.get('task')!=TASK or bindings.get('codebook_commit')!=CODEBOOK
             or report.get('mode') not in ('binary','multilabel') or bindings.get('mode')!=report['mode']
             or bindings.get('target_mapping_digest')!=_digest({'normal':0,'pathology_codes':[1,2,3,4,5,6]})

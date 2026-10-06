@@ -275,3 +275,7 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]
 Качество ниже constant baseline (test AUROC 0.291 против 0.500); это
 исследовательский отрицательный результат по авторским ROI. Подробности,
 границы оценки и следующий этап — [протокол](experiments/tmj_od3d_feasibility_20261005/README.md#результат-первого-binary-training-2026-10-06).
+
+Osseous research config теперь допускает экспериментальный `architecture="spatial_head"`;
+default `global_mean` сохраняет прежнее поведение. Вариант ещё не выбран CV;
+обобщение неизвестно. Контракт и приёмка: [архитектура](docs/spec/functional/osseous/README.md#fr-ml-osseous-architecture).
