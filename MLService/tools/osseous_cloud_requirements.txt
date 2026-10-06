@@ -1,0 +1,7 @@
+# Python 3.12 Linux, CUDA 11.8 matches DataSphere Jobs default driver/runtime.
+# Torch 2.6 selected explicitly; PyPI Torch 2.11 defaults to CUDA 13.
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.6.0+cu118
+numpy==2.1.3
+scipy==1.14.1
+scikit-learn==1.6.1
