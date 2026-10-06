@@ -133,6 +133,8 @@ consumer preflight после staging и фиксирует bytes/hash кода,
 split, codebook и mapping. Payload ≤5 GiB. Confirm принимает SHA256 плана;
 повторная отправка после неизвестного исхода запрещена до reconciliation.
 
+Requirements-file для официального CLI содержит только package specifiers и поддерживаемые pip flags, без комментариев. Manual local module — существующий launcher внутри проверенного payload; повторная упаковка учтена в upload estimate.
+
 План указывает project/profile, GPU, Python/requirements, стоимость на дату,
 время обучения и исключённые расходы. Watchdog ограничивает процесс обучения
 четырьмя часами; это не гарантия предельной суммы счёта, подготовка среды и

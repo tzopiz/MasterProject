@@ -263,3 +263,16 @@ def test_prepare_rejects_oversized_index_before_unbounded_consumer_read(tmp_path
     monkeypatch.setattr(cloud, "preflight", forbidden)
     with pytest.raises(CloudLaunchError, match="^invalid_private_index$"):
         cloud.prepare_bundle(config_path, tmp_path / "bundle", project_id="synthetic")
+
+
+def test_cloud_requirements_are_accepted_by_datasphere_requirement_parser():
+    # DataSphere's parser accepts these pip flags but rejects comment lines.
+    from packaging.requirements import Requirement
+
+    path = Path(cloud.__file__).with_name("osseous_cloud_requirements.txt")
+    lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
+    for line in lines:
+        if line.startswith("--extra-index-url "):
+            continue
+        requirement = Requirement(line)
+        assert not requirement.marker and not requirement.url

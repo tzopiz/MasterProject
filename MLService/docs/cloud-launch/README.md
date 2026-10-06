@@ -99,3 +99,14 @@ step и официальный CLI config validation пройдены; scope и 
 source_end_offset}` в `curate_tmj_od3d.py`, связанная с SHA256 source state и
 каждым reviewed failure. Публичных patient rows в документах нет.
 Обучение и upload не запускались; стоимость не списывалась за наш запуск.
+
+Официальный CLI разбирает каждую непустую строку requirements-file как package
+specifier либо поддерживаемый pip flag; комментарии `#` здесь запрещены.
+Osseous requirements используют Python 3.12 и Torch 2.6.0+cu118 с CUDA 11.8,
+совместимой с выбранным контейнером. Пояснения находятся в README, а не в
+requirements-file. Регрессия и offline parser проверены в [010](../../../docs/changes/010-datasphere-requirements/README.md).
+
+CLI 0.10.0 не сохраняет пустой manual `local-paths`: osseous job объявляет
+один launcher `payload/tools/run_osseous_research.py` из проверенного manifest.
+Его повторная упаковка как local module учтена в upload estimate; новые
+данные или каталоги вне payload не добавляются.
