@@ -181,6 +181,49 @@ Binary/multilabel development успешно завершаются при уд�
 output. Обычный preflight с отсутствующими test crops отклоняется.
 Связь: [изменение 011](../../../../../docs/changes/011-osseous-development/README.md).
 
+<a id="fr-ml-osseous-features"></a>
+## FR-ML-OSSEOUS-FEATURES — Offline признаки и fit-only head
+
+`tmj_osseous_features` предоставляет библиотечный API для отдельного frozen
+ResNet18 ImageNet1K V1 пути. `load_backbone(weights_path)` принимает локальные
+веса только с полным SHA256
+`f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec`;
+проверка предшествует безопасной десериализации. Downloads отсутствуют.
+
+`extract_features(backbone, crop)` принимает finite float16/float32 bag
+[16,1,96,96] в [0,1], обрабатывает весь ROI bilinear antialias resize224
+(align_corners=False), повторяет grayscale в RGB, применяет ImageNet mean/std.
+Frozen eval/inference_mode возвращает среднее 16×512 признаков как float32[512].
+Это CPU API; GPU fine-tuning и DICOM localization им не реализованы.
+
+`fit_head(features, targets, mode=..., C=...)` создаёт новый StandardScaler
+и balanced liblinear LogisticRegression (seed42, max_iter2000), используя
+только переданные fit-строки. Binary targets имеют один столбец, multilabel —
+шесть в порядке кодов1–6. Для one-class labels сохраняются prevalence fit-набора,
+constant output и support mask. Их показатели не становятся свидетельством
+качества. C по умолчанию0,01; caller отвечает за patient split и выбор C.
+
+`predict_head(bundle, features)` возвращает finite positive-class probabilities
+в том же порядке, не переобучая scaler/head; nonfinite logits отклоняются даже
+при finite sigmoid. Некорректные входы, веса и convergence failures дают
+стабильные ResearchError codes без раскрытия путей/значений. Bundle содержит
+recipe/digest и fitted state; сериализация, доверие к файлам, source bindings,
+evaluation support masks и orchestration остаются ответственностью caller.
+Default scratch trainer/cloud workflow этим API не заменяется.
+
+Приёмка: [TC-ML-OSSEOUS-FEATURES](#tc-ml-osseous-features).
+
+<a id="tc-ml-osseous-features"></a>
+### TC-ML-OSSEOUS-FEATURES — Воспроизводимость рецепта
+
+Synthetic tests без скачивания весов проверяют numerical transform, frozen
+parameters/BN, mean pooling, feature shape, class order, fit-only scaling,
+constant unsupported labels, сериализацию и safe failures. Дополнительная
+приватная replay проверка одного TRAIN crop и полного TRAIN head на сохранённых
+validation features требует точного совпадения с закреплённым рецептом; test
+inference не выполняется. Это проверка реализации, не независимая оценка модели.
+Связь: [изменение013](../../../../../docs/changes/013-osseous-frozen-features/README.md).
+
 <a id="fr-ml-osseous-cloud"></a>
 ## FR-ML-OSSEOUS-CLOUD — Подтверждение конкретного запуска
 

@@ -2,7 +2,7 @@
 
 | Изменение | Статус | Результат |
 |---|---|---|
-| [013 — Frozen features](013-osseous-frozen-features/README.md) | open | Перенос проверенного рецепта в reusable API; CLI отдельно |
+| [013 — Frozen features](013-osseous-frozen-features/README.md) | done | Offline feature/head API,31 synthetic checks и точный private replay; CLI отдельно |
 | [012 — Архитектура](012-osseous-architecture/README.md) | done | Явный experimental spatial_head; default и legacy provenance сохранены |
 | [011 — Development](011-osseous-development/README.md) | done | Train/validation изоляция, stable loss, 51 checks; TRAIN-only диагностика отдельно |
 | [003 — TMJ-OD3D](003-tmj-od3d-pilot/README.md) | done | Готовый запуск выбранной когорты; добор остановлен пользователем |
