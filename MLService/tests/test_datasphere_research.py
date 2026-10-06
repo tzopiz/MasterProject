@@ -1,6 +1,7 @@
 """Local synthetic bundles and official-CLI transport doubles; no cloud writes."""
 
 import json
+import random
 import subprocess
 from pathlib import Path
 
@@ -294,11 +295,17 @@ def test_invalid_cli_is_private(tmp_path):
     assert "SyntheticSensitive" not in result.stdout + result.stderr
 
 
-def test_shared_patient_group_is_preserved_in_private_rekeyed_index(tmp_path):
+@pytest.mark.parametrize("alias_seed", [7, 23, 29])
+def test_shared_patient_group_is_preserved_in_private_rekeyed_index(
+    tmp_path, monkeypatch, alias_seed
+):
     cfg = _canonical_synthetic_config(tmp_path)
     index = json.loads(Path(cfg.input_path).read_text())
     index["studies"][4]["patient_id"] = index["studies"][0]["patient_id"]
     index["labels"][4]["patient_id"] = index["labels"][0]["patient_id"]
+    # Grouping is the contract under test; each group supports both classes.
+    for row in index["labels"]:
+        row["labels"]["sagittal"] = {"left": 1, "right": 2}
     Path(cfg.input_path).write_text(json.dumps(index))
     config = tmp_path / "research.private.json"
     config.write_text(
@@ -316,6 +323,7 @@ def test_shared_patient_group_is_preserved_in_private_rekeyed_index(tmp_path):
         )
     )
     module = launcher()
+    monkeypatch.setattr(module.os, "urandom", random.Random(alias_seed).randbytes)
     plan = module.prepare_cloud_bundle(
         config,
         tmp_path / "bundle",
