@@ -1,6 +1,6 @@
 # 005 — Подготовка изображений TMJ-OD3D
 
-Статус: in-progress. Основание: [004](../004-od3d-intake/README.md).
+Статус: done. Основание: [004](../004-od3d-intake/README.md).
 
 ## Контракт
 
@@ -37,13 +37,14 @@ CSV codes должны совпадать с unionJSONcodes, пропуск/пу
 4. tests/test_tmj_od3d_images.py: sparse actual InstanceNumber,reference binding,
    normal/multiplecodes,CSVmismatch, bounds,duplicateinstances/SOP,
    croppedpixelhash mutation; real singlepatient smoke aggregateonly.
-5. Проверить pilot и затем полный release streaming, данные внеGit.
+5. Проверить pilot и выбранную пользователем когорту (объём уточнён в 009),
+   данные вне Git. Full-release режим сохраняется как отдельная возможность.
    ПолныйTAR ~69GiBнехранится; rawcache≤1GiB,prepared≤5GiB,таймауты/retry.
    При interrupted HTTP resume от TAR границы завершённого пациента.
 
 ## Результаты
 
-Не выполнено. Критерий завершения полного набора: достигнут EOF архива,
+Исторический критерий завершения полного набора: достигнут EOF архива,
 каждая CSVстрока имеет inclusion/exclusion reason, checksumindex и фактические
 counts; небольшая smokeвыборка не является готовностью всей когорты.
 
@@ -145,3 +146,16 @@ Backoff regression сначала наблюдался red в пяти сцен�
 PASS за 0.70 s. Resume EOF не вызывает urlopen и сохраняет hashes crops.
 После cooldown реальный supervisor возобновил source scan с 77 до 86
 завершённых пациентов; это ещё не полная когорта.
+
+## Закрытие приёмки на выбранной когорте
+
+Пользователь остановил добор и сохранил цель готового запуска; полная загрузка
+1043 пациентов больше не обязательна для этого запуска. Уточнённый scope и
+фактические gates: [009](../009-bounded-cohort/README.md). План текущего
+запуска закрыт на выбранных 148 source cases: два технически противоречивых
+пациента исключены с policy/provenance; 146 пациентов и 289 сторон приняты.
+Binary/multilabel real preflight и staged Torch 2.6 CPU step прошли; test не
+оценивался. Frozen split 102/22/22 пациентов, development-only вне test.
+Два immutable пакета DataSphere собраны и проверены установленным CLI.
+Full-release EOF не достигнут и не заявляется; source.complete=false сохранён.
+Платное обучение и улучшение метрик не заявляются выполненными.

@@ -1,6 +1,6 @@
 # 003 — Пилот TMJ-OD3D без новой врачебной разметки
 
-Статус: in-progress. Дата: 2026-10-05.
+Статус: done. Дата: 2026-10-05.
 
 ## Цель и границы
 
@@ -84,16 +84,29 @@ validation support. Эти проверки не доказывают готов
 или улучшение метрик. Источник временами отвечает HTTP 429; подготовка
 возобновляется из приватного checkpoint с cooldown, без обхода ограничений.
 
-Остаются полный EOF/1043 coverage, review всех source failures, явная курация,
-real-data consumer preflight binary/multilabel и готовые immutable bundles.
-После них потребуется только подтверждение конкретного платного запуска.
+Перечисленные ранее gates полного релиза заменены выбранной пользователем
+bounded cohort в 009. Review failures, курация, оба real consumer preflight и
+immutable bundles выполнены. Теперь остаётся подтверждение платного запуска.
 
 | Часть | PR | Приёмка |
 |---|---|---|
 | Intake | [98](https://github.com/tzopiz/MasterProject/pull/98) | Выполнена в 004 |
-| ROI | [99](https://github.com/tzopiz/MasterProject/pull/99) | Реальная когорта в 005 ещё готовится |
-| Streaming | [100](https://github.com/tzopiz/MasterProject/pull/100) | Полный EOF остаётся открытым |
-| Preflight | [101](https://github.com/tzopiz/MasterProject/pull/101) | Локальные проверки пройдены |
-| Train/eval | [102](https://github.com/tzopiz/MasterProject/pull/102) | CPU smoke пройден; полный preflight открыт |
-| DataSphere | [103](https://github.com/tzopiz/MasterProject/pull/103) | Реальный bundle ещё не собран |
-| Curation | [104](https://github.com/tzopiz/MasterProject/pull/104) | Реальная review policy ожидает EOF |
+| ROI | [99](https://github.com/tzopiz/MasterProject/pull/99) | Выбранная когорта принята в 009 |
+| Streaming | [100](https://github.com/tzopiz/MasterProject/pull/100) | Полный режим проверен тестами; добор остановлен |
+| Preflight | [101](https://github.com/tzopiz/MasterProject/pull/101) | Реальные данные и replay проверены |
+| Train/eval | [102](https://github.com/tzopiz/MasterProject/pull/102) | Оба preflight и staged CPU step пройдены |
+| DataSphere | [103](https://github.com/tzopiz/MasterProject/pull/103) | Два реальных bundle готовы |
+| Curation | [104](https://github.com/tzopiz/MasterProject/pull/104) | Policy и выбранная когорта проверены |
+
+## Закрытие приёмки на выбранной когорте
+
+Пользователь остановил добор и сохранил цель готового запуска; полная загрузка
+1043 пациентов больше не обязательна для этого запуска. Уточнённый scope и
+фактические gates: [009](../009-bounded-cohort/README.md). План текущего
+запуска закрыт на выбранных 148 source cases: два технически противоречивых
+пациента исключены с policy/provenance; 146 пациентов и 289 сторон приняты.
+Binary/multilabel real preflight и staged Torch 2.6 CPU step прошли; test не
+оценивался. Frozen split 102/22/22 пациентов, development-only вне test.
+Два immutable пакета DataSphere собраны и проверены установленным CLI.
+Full-release EOF не достигнут и не заявляется; source.complete=false сохранён.
+Платное обучение и улучшение метрик не заявляются выполненными.

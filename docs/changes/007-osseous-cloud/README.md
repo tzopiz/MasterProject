@@ -1,6 +1,6 @@
 # 007 — Готовый запуск osseous baseline в DataSphere
 
-Статус: in-progress. Зависимости: [005](../005-od3d-preparation/README.md),
+Статус: done. Зависимости: [005](../005-od3d-preparation/README.md),
 [006](../006-od3d-training/README.md).
 
 ## Контракт и план
@@ -73,3 +73,16 @@ Ruff F/I checks двух изменённых файлов, `python3 scripts/che
 явный Docker image CUDA 11.8. Provider calls при этой проверке отсутствовали.
 Официальные API restrictions проекта/сообщества подтвердили ALLOW_JOBS и
 ALLOW_SPEC_GT_4_1; ответы сохранены приватно.
+
+## Закрытие приёмки на выбранной когорте
+
+Пользователь остановил добор и сохранил цель готового запуска; полная загрузка
+1043 пациентов больше не обязательна для этого запуска. Уточнённый scope и
+фактические gates: [009](../009-bounded-cohort/README.md). План текущего
+запуска закрыт на выбранных 148 source cases: два технически противоречивых
+пациента исключены с policy/provenance; 146 пациентов и 289 сторон приняты.
+Binary/multilabel real preflight и staged Torch 2.6 CPU step прошли; test не
+оценивался. Frozen split 102/22/22 пациентов, development-only вне test.
+Два immutable пакета DataSphere собраны и проверены установленным CLI.
+Full-release EOF не достигнут и не заявляется; source.complete=false сохранён.
+Платное обучение и улучшение метрик не заявляются выполненными.

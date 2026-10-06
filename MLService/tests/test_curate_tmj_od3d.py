@@ -344,3 +344,166 @@ def test_late_mutation_of_already_copied_crop_is_rejected(tmp_path, monkeypatch)
     with pytest.raises(curation.CurationError):
         curation.curate(root, policy_path, output)
     assert not (output / "index.private.json").exists()
+
+
+def archive_prefix(tmp_path, monkeypatch):
+    root, state, policy, policy_path, save_index = cohort(tmp_path, monkeypatch)
+    state["processed_patients"] = state["processed_patients"][:6]
+    state["patient_receipts"] = state["patient_receipts"][:6]
+    patients = {row["patient_id"] for row in state["patient_receipts"]}
+    state["records"] = [row for row in state["records"] if row["patient_id"] in patients]
+    state.update(complete=False, next_offset=state["patient_receipts"][-1]["tar_end"])
+    write(root / "preparation.private.json", state)
+    save_index()
+    policy["source_preparation_sha256"] = digest(root / "preparation.private.json")
+    policy["cohort"] = dict(
+        kind="archive-prefix", source_patient_count=6, source_end_offset=state["next_offset"]
+    )
+    write(policy_path, policy)
+    return root, state, policy, policy_path, save_index
+
+
+def source_snapshot(root):
+    return {str(path.relative_to(root)): digest(path) for path in root.rglob("*") if path.is_file()}
+
+
+def test_explicit_archive_prefix_is_curated_without_completing_or_mutating_source(
+    tmp_path, monkeypatch
+):
+    root, state, policy, policy_path, _ = archive_prefix(tmp_path, monkeypatch)
+    before = source_snapshot(root)
+    report = curation.curate(root, policy_path, tmp_path / "curated")
+    index = json.loads((tmp_path / "curated" / "index.private.json").read_text())
+    assert index["complete"] is True
+    assert index["cohort"] == dict(
+        kind="archive-prefix",
+        source_complete=False,
+        release_patient_count=20,
+        source_patient_count=6,
+        source_end_offset=state["next_offset"],
+    )
+    assert report["cohort"] == index["cohort"]
+    assert index["patient_count"] == 5 and len(index["records"]) == 10
+    assert report["source_patients"] == 6 and report["accepted_sides"] == 10
+    assert index["source_failures"] == {"annotation_side_conflict": 1}
+    assert index["curation"]["source_preparation_sha256"] == policy["source_preparation_sha256"]
+    assert "private-patient-" not in json.dumps(index) + json.dumps(report)
+    assert "processed_patients" not in index and "patient_receipts" not in index
+    assert before == source_snapshot(root)
+    assert json.loads((root / "preparation.private.json").read_text())["complete"] is False
+
+
+def test_archive_prefix_still_requires_explicit_opt_in(tmp_path, monkeypatch):
+    root, _, policy, policy_path, _ = archive_prefix(tmp_path, monkeypatch)
+    del policy["cohort"]
+    write(policy_path, policy)
+    before = source_snapshot(root)
+    with pytest.raises(curation.CurationError, match="^source_incomplete$"):
+        curation.curate(root, policy_path, tmp_path / "curated")
+    assert not (tmp_path / "curated").exists() and before == source_snapshot(root)
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        None,
+        [],
+        False,
+        {},
+        {"kind": "unknown"},
+        {"kind": "archive-prefix", "source_patient_count": 6},
+        {"kind": "archive-prefix", "source_patient_count": True, "source_end_offset": 3072},
+        {"kind": "archive-prefix", "source_patient_count": 6.0, "source_end_offset": 3072},
+        {"kind": "archive-prefix", "source_patient_count": 0, "source_end_offset": 3072},
+        {"kind": "archive-prefix", "source_patient_count": 20, "source_end_offset": 3072},
+        {"kind": "archive-prefix", "source_patient_count": 6, "source_end_offset": True},
+        {"kind": "archive-prefix", "source_patient_count": 6, "source_end_offset": "3072"},
+        {"kind": "archive-prefix", "source_patient_count": 6, "source_end_offset": 0},
+        {
+            "kind": "archive-prefix",
+            "source_patient_count": 6,
+            "source_end_offset": curation.ARCHIVE_BYTES,
+        },
+        {
+            "kind": "archive-prefix",
+            "source_patient_count": 6,
+            "source_end_offset": 3072,
+            "extra": 1,
+        },
+    ],
+)
+def test_archive_prefix_rejects_malformed_policy(tmp_path, monkeypatch, selection):
+    root, _, policy, policy_path, _ = archive_prefix(tmp_path, monkeypatch)
+    policy["cohort"] = selection
+    write(policy_path, policy)
+    with pytest.raises(curation.CurationError, match="^invalid_cohort_policy$"):
+        curation.curate(root, policy_path, tmp_path / "curated")
+    assert not (tmp_path / "curated").exists()
+
+
+@pytest.mark.parametrize(
+    "mutation, code",
+    [
+        ("count", "source_coverage_mismatch"),
+        ("offset", "source_incomplete"),
+        ("complete", "source_incomplete"),
+        ("complete_type", "source_incomplete"),
+        ("offset_type", "source_incomplete"),
+        ("hash", "policy_source_mismatch"),
+        ("unknown_patient", "source_coverage_mismatch"),
+        ("duplicate_patient", "source_coverage_mismatch"),
+        ("metadata_count", "source_coverage_mismatch"),
+        ("receipt_count", "receipt_coverage_mismatch"),
+        ("receipt_gap", "invalid_receipt"),
+        ("receipt_end", "source_failure_mismatch"),
+        ("unreviewed", "policy_receipt_mismatch"),
+        ("lock", "source_locked"),
+        ("crop", "crop_changed"),
+    ],
+)
+def test_archive_prefix_retains_integrity_review_and_privacy_gates(
+    tmp_path, monkeypatch, mutation, code
+):
+    root, state, policy, policy_path, save_index = archive_prefix(tmp_path, monkeypatch)
+    if mutation == "count":
+        policy["cohort"]["source_patient_count"] += 1
+    elif mutation == "offset":
+        policy["cohort"]["source_end_offset"] += 512
+    elif mutation == "complete":
+        state["complete"] = True
+    elif mutation == "complete_type":
+        state["complete"] = 0
+    elif mutation == "offset_type":
+        state["next_offset"] = float(state["next_offset"])
+    elif mutation == "unknown_patient":
+        state["processed_patients"][-1] = "unknown-private-patient"
+    elif mutation == "duplicate_patient":
+        state["processed_patients"][-1] = state["processed_patients"][0]
+    elif mutation == "metadata_count":
+        metadata = root / "metadata.private.csv"
+        metadata.write_text("\n".join(metadata.read_text().splitlines()[:-1]) + "\n")
+        monkeypatch.setattr(curation, "METADATA_SHA256", digest(metadata))
+        state["metadata_sha256"] = digest(metadata)
+    elif mutation == "receipt_count":
+        state["patient_receipts"].pop()
+    elif mutation == "receipt_gap":
+        state["patient_receipts"][2]["tar_start"] += 1
+    elif mutation == "receipt_end":
+        state["patient_receipts"][-1]["tar_end"] += 512
+    elif mutation == "unreviewed":
+        policy["reviews"] = []
+    elif mutation == "lock":
+        (root / "preparation.lock").write_text("{}")
+    elif mutation == "crop":
+        (root / state["records"][0]["crop_path"]).write_bytes(b"changed")
+    write(root / "preparation.private.json", state)
+    save_index()
+    policy["source_preparation_sha256"] = (
+        "f" * 64 if mutation == "hash" else digest(root / "preparation.private.json")
+    )
+    write(policy_path, policy)
+    before = source_snapshot(root)
+    with pytest.raises(curation.CurationError, match=f"^{code}$") as caught:
+        curation.curate(root, policy_path, tmp_path / "curated")
+    assert not (tmp_path / "curated").exists() and before == source_snapshot(root)
+    assert "private-patient-" not in str(caught.value) and str(tmp_path) not in str(caught.value)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply explicit reviewed technical exclusions to a completed private preparation."""
+"""Apply reviewed exclusions to a complete release or an explicit private archive prefix."""
 from __future__ import annotations
 
 import argparse
@@ -64,10 +64,23 @@ def _curate(source, policy_path, output):
     require(type(state.get('schema_version')) is int and state['schema_version']==1 and state.get('task')==TASK
         and state.get('source_doi')==SOURCE_DOI and state.get('codebook_commit')==CODEBOOK_COMMIT
         and state.get('metadata_sha256')==METADATA_SHA256, 'incompatible_preparation')
-    require(state.get('complete') is True and state.get('next_offset')==ARCHIVE_BYTES, 'source_incomplete')
+    selected_cohort = policy.get('cohort')
+    expected_count, expected_end, source_complete = EXPECTED_PATIENT_COUNT, ARCHIVE_BYTES, True
+    if 'cohort' in policy:
+        require(isinstance(selected_cohort,dict) and set(selected_cohort)=={
+            'kind','source_patient_count','source_end_offset'} and selected_cohort.get('kind')=='archive-prefix',
+            'invalid_cohort_policy')
+        expected_count, expected_end = selected_cohort['source_patient_count'], selected_cohort['source_end_offset']
+        require(type(expected_count) is int and 0<expected_count<EXPECTED_PATIENT_COUNT
+            and type(expected_end) is int and 0<expected_end<ARCHIVE_BYTES, 'invalid_cohort_policy')
+        source_complete = False
+    require(state.get('complete') is source_complete and type(state.get('next_offset')) is int
+        and state['next_offset']==expected_end, 'source_incomplete')
     names, receipts, records = state.get('processed_patients'), state.get('patient_receipts'), state.get('records')
-    require(isinstance(names,list) and len(names)==EXPECTED_PATIENT_COUNT and len(set(names))==len(names)
-        and set(names)==set(load_metadata(files['metadata_sha256'])), 'source_coverage_mismatch')
+    metadata = load_metadata(files['metadata_sha256'])
+    require(isinstance(names,list) and all(isinstance(name,str) for name in names)
+        and len(names)==expected_count and len(set(names))==len(names) and len(metadata)==EXPECTED_PATIENT_COUNT
+        and set(names)<=set(metadata), 'source_coverage_mismatch')
     require(isinstance(receipts,list) and len(receipts)==len(names) and isinstance(records,list), 'receipt_coverage_mismatch')
     expected_index = {k:v for k,v in state.items() if k not in ('processed_patients','next_offset','patient_receipts')}
     expected_index['patient_count'] = len(names)
@@ -85,7 +98,7 @@ def _curate(source, policy_path, output):
             failed[patient]=receipt['code']; failures[receipt['code']]+=1
         else: require(receipt.get('status')=='prepared' and receipt.get('code')=='ok', 'invalid_receipt')
         ownership[patient]=count
-    require(previous==ARCHIVE_BYTES and state.get('failures')==dict(failures), 'source_failure_mismatch')
+    require(previous==expected_end and state.get('failures')==dict(failures), 'source_failure_mismatch')
     require(policy.get('schema_version')==1 and policy.get('task')==TASK
         and policy.get('source_preparation_sha256')==before['source_preparation_sha256'], 'policy_source_mismatch')
     reviews = policy.get('reviews'); require(isinstance(reviews,list), 'invalid_policy')
@@ -128,6 +141,9 @@ def _curate(source, policy_path, output):
         report = dict(status='curated',source_patients=len(names),accepted_patients=len(counts),
             accepted_source_patients=len(names)-len(failed),excluded_patients=len(failed),accepted_sides=len(selected),
             copied_bytes=total,source_failures=dict(failures),consumer_preflight_required=True)
+        if selected_cohort is not None:
+            cohort_metadata = dict(selected_cohort, source_complete=False, release_patient_count=EXPECTED_PATIENT_COUNT)
+            curated['cohort'] = cohort_metadata; report['cohort'] = cohort_metadata
         _write(output/'curation-report.json',report); _write(output/'index.private.json',curated)
         return report
     except Exception:
