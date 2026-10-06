@@ -123,6 +123,35 @@ CPU обучение обоих режимов, сохранение и
 выбранной эпохи и порогов при изменении test labels. Публичный отчёт содержит
 агрегаты; predictions, membership, checkpoints и index остаются приватными.
 
+<a id="fr-ml-osseous-development"></a>
+## FR-ML-OSSEOUS-DEVELOPMENT — Эксперименты без test inference
+
+`train(config, development=True)` / CLI `--develop` требуют существующий frozen
+split. Test membership/declared provenance проверяются, но test NPZ не открываются
+и их payload integrity не подтверждается. Train/validation crop checks остаются
+строгими. Membership и исходный index digest не изменяются; binding дополнительно
+содержит evaluation_scope=development. Выбор эпохи и порогов использует validation.
+
+Отчёт обозначен development и содержит train/validation metrics; test metrics,
+predictions и crop bindings отсутствуют. Validation используется при подборе,
+поэтому её метрики и bootstrap не являются независимой оценкой качества.
+История сохраняет среднюю weighted BCE по обучающим minibatches, validation
+weighted BCE и std validation probabilities. При inference/reporting порядок
+соответствует targets. Обычный holdout путь по-прежнему проверяет test payload.
+Разработка не создаёт новые права на публикацию приватных данных/весов или
+повторное платное обучение.
+
+Приёмка: [TC-ML-OSSEOUS-DEVELOPMENT](#tc-ml-osseous-development).
+
+<a id="tc-ml-osseous-development"></a>
+### TC-ML-OSSEOUS-DEVELOPMENT — Проверка изоляции
+
+Binary/multilabel development успешно завершаются при удалённых test crops,
+сохраняют checkpoint/reload и только train/validation predictions/manifest.
+Без frozen split либо с неверным digest выполнение отклоняется до создания
+output. Обычный preflight с отсутствующими test crops отклоняется.
+Связь: [изменение 011](../../../../../docs/changes/011-osseous-development/README.md).
+
 <a id="fr-ml-osseous-cloud"></a>
 ## FR-ML-OSSEOUS-CLOUD — Подтверждение конкретного запуска
 

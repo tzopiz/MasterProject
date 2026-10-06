@@ -2,6 +2,7 @@
 
 | Изменение | Статус | Результат |
 |---|---|---|
+| [011 — Development](011-osseous-development/README.md) | done | Train/validation изоляция, stable loss, 51 checks; TRAIN-only диагностика отдельно |
 | [003 — TMJ-OD3D](003-tmj-od3d-pilot/README.md) | done | Готовый запуск выбранной когорты; добор остановлен пользователем |
 | [004 — Intake](004-od3d-intake/README.md) | done | Реальные CSV/JSON и 58 целевых тестов проверены; итоговый suite 585 passed |
 | [005 — Подготовка ROI](005-od3d-preparation/README.md) | done | 148 source cases обработаны; полная загрузка не заявляется |

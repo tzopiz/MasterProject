@@ -354,3 +354,115 @@ def test_multilabel_calibration_support_excludes_unvalidated_test_labels(tmp_pat
         "label_limitations",
     ):
         assert metadata[field] == report[field]
+
+
+@pytest.mark.parametrize("mode", ["binary", "multilabel"])
+def test_development_never_opens_test_crops_and_has_no_test_outputs(tmp_path, mode, capsys):
+    index, config = fixture(tmp_path)
+    split = research.build_split(index["records"])
+    frozen = tmp_path / "frozen.private.json"
+    frozen.write_text(
+        json.dumps(
+            dict(
+                task=research.TASK, seed=42, membership=split, split_digest=research._digest(split)
+            )
+        )
+    )
+    config.update(mode=mode, split_path=str(frozen))
+    for record in index["records"]:
+        if record["patient_id"] in split["test"]:
+            (tmp_path / record["crop_path"]).unlink()
+    preview = research.preflight(config, development=True)
+    assert set(preview["partitions"]) == {"train", "validation"}
+    if mode == "binary":
+        from tools.run_osseous_research import main
+
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(config))
+        assert main(["--config", str(config_path), "--develop"]) == 0
+        report = json.loads(capsys.readouterr().out)
+    else:
+        report = research.train(config, development=True)
+    assert report["evaluation_scope"] == "development"
+    assert "test" not in report
+    assert report["validation"]["model"]["auroc"] is not None
+    assert report["train"]["model"]["auroc"] is not None
+    assert report["checkpoint_reload_verified"]
+    for epoch in report["selection_history"]:
+        assert np.isfinite(epoch["train_weighted_loss"])
+        assert np.isfinite(epoch["validation_weighted_loss"])
+        assert epoch["validation_probability_std"] >= 0
+    run = Path(config["output_dir"])
+    predictions = json.loads((run / "predictions.private.json").read_text())["records"]
+    assert {r["partition"] for r in predictions} == {"train", "validation"}
+    assert not {r["patient_id"] for r in predictions} & set(split["test"])
+    manifest = json.loads((run / "manifest.private.json").read_text())
+    assert not {r["patient_id"] for r in manifest["crop_bindings"]} & set(split["test"])
+    with pytest.raises(research.ResearchError):
+        research.preflight(config)
+
+
+def test_development_requires_valid_existing_frozen_split(tmp_path):
+    _, config = fixture(tmp_path)
+    with pytest.raises(research.ResearchError, match="development_requires_frozen_split"):
+        research.train(config, development=True)
+    split = research.build_split(json.loads(Path(config["index_path"]).read_text())["records"])
+    path = tmp_path / "split.json"
+    path.write_text(
+        json.dumps(dict(task=research.TASK, seed=42, membership=split, split_digest="bad"))
+    )
+    config["split_path"] = str(path)
+    with pytest.raises(research.ResearchError, match="frozen_split_digest_mismatch"):
+        research.train(config, development=True)
+    assert not Path(config["output_dir"]).exists()
+
+
+@pytest.mark.parametrize("mutation", ["omitted", "duplicated"])
+def test_invalid_development_membership_is_rejected_before_any_crop(
+    tmp_path, monkeypatch, mutation
+):
+    index, config = fixture(tmp_path)
+    split = research.build_split(index["records"])
+    if mutation == "omitted":
+        split["test"].pop()
+    else:
+        split["train"].append(split["test"][0])
+    frozen = tmp_path / "frozen.json"
+    frozen.write_text(
+        json.dumps(
+            dict(
+                task=research.TASK, seed=42, membership=split, split_digest=research._digest(split)
+            )
+        )
+    )
+    config["split_path"] = str(frozen)
+    reads = []
+    original = research.load_crop
+
+    def record_read(*args):
+        reads.append(args[0])
+        return original(*args)
+
+    monkeypatch.setattr(research, "load_crop", record_read)
+    with pytest.raises(research.ResearchError, match="patient_partition_leakage"):
+        research.preflight(config, development=True)
+    assert not reads
+
+
+def test_validation_loss_preserves_confident_wrong_logits(tmp_path, monkeypatch):
+    _, config = fixture(tmp_path)
+    original = research.SliceBagClassifier
+
+    def saturated_model(outputs=1):
+        model = original(outputs)
+        with torch.no_grad():
+            model.head.weight.zero_()
+            model.head.bias.fill_(50.0)
+        return model
+
+    monkeypatch.setattr(research, "SliceBagClassifier", saturated_model)
+    config.update(epochs=1, bootstrap_draws=0)
+    report = research.train(config)
+    # Half the validation examples are negative: mean stable BCE is about 25,
+    # whereas reconstructing it from clipped sigmoid caps this below 8.
+    assert report["selection_history"][0]["validation_weighted_loss"] > 20

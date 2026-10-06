@@ -141,3 +141,5 @@ results:
 
 **Note**: Эта папка добавлена в `.gitignore` (кроме README.md) для экономии места в репозитории. Используйте Git LFS или облачное хранилище для версионирования больших файлов моделей.
 
+
+[TRAIN-only диагностика osseous baseline](osseous_train_diagnostic_20261006/README.md).
