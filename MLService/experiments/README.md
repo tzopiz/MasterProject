@@ -19,7 +19,7 @@
 | [Frozen ResNet features, patient CV](osseous_resnet_features_cv_20261006/README.md) | Средний AUROC0,609; допущена к original validation |
 | [Frozen ResNet, original validation](osseous_resnet_validation_20261006/README.md) | AUROC0,733; внутри profile1510,571; исследовательский кандидат сохранён |
 | [Nested TRAIN-only регуляризация](osseous_resnet_nested_regularization_20261006/README.md) | Mean AUROC0,688; допущен выбор C на full TRAIN |
-| [Max16 frozen features](osseous_max_features_cv_20261006/README.md) | planned: одна CPU гипотеза на прежних nested patient folds |
+| [Max16 frozen features](osseous_max_features_cv_20261006/README.md) | CPU завершён: AUROC0,640 против0,688, max16 не выбран |
 | [Layer4 TRAIN-only CV](osseous_layer4_cv_20261006/README.md) | A100 завершён: AUROC0,697, delta+0,009; критерий выбора не выполнен |
 | [TRAIN-selected head, validation](osseous_resnet_selected_validation_20261006/README.md) | C0,01; AUROC0,727, balancedaccuracy0,659; без доказанного ranking gain |
 

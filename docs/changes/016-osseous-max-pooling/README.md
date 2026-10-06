@@ -1,6 +1,6 @@
 # 016 — Проверка max pooling для frozen osseous features
 
-Статус: open
+Статус: done
 
 ## Проблема и целевая разница
 
@@ -28,4 +28,14 @@ max вместо mean по16 frozen slice embeddings, с неизменной р
 
 ## Результаты
 
-2026-10-06: протокол заполнен; запуск и результаты отсутствуют.
+2026-10-06: private worker414строк independently accepted SHA
+`64a9b99489ea8b48c1a3d35914b431566cb87677c5e86903a139ea0b1b5b78cf`.
+CPU run completed exit0:204TRAIN bags,90inner/5outer fits,80,41с+1,16с;
+mean parity0,0,15completion hashes и5exactcheckpointreplays проверены root.
+MeanCV AUROC0,640263, delta−0,047668, wins2/5; criterion failed, retain_nested_mean16.
+Original validation/test не открывались; source/API/defaults не изменены.
+Все три пункта выполнены: worker/protocol/result/docs independently reviewed,
+результаты/registry обновлены и [PR115](https://github.com/tzopiz/MasterProject/pull/115) опубликован.
+Aggregate data и hashes — в протоколе; приватные artifacts не в git.
+
+`python3 scripts/check_specs.py`, `--self-test`, `git diff --check` →passed.
