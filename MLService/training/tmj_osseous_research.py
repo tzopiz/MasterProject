@@ -148,8 +148,25 @@ def _targets(records, ids, mode):
                     [int(c in records[i]['codes']) for c in range(1, 7)] for i in ids], dtype=np.float32)
 
 
-def _prepare(value):
+def _frozen_split(config):
+    document = _json(config['split_path'])
+    split = document.get('membership') if isinstance(document, dict) else None
+    if not isinstance(document, dict) or document.get('task') != TASK or document.get('seed') != 42:
+        _fail('incompatible_frozen_split')
+    if document.get('split_digest') != _digest(split):
+        _fail('frozen_split_digest_mismatch')
+    if not isinstance(split, dict) or set(split) != set(PARTITIONS):
+        _fail('invalid_frozen_split')
+    if any(not isinstance(ids, list) or not all(isinstance(p, str) for p in ids) for ids in split.values()):
+        _fail('invalid_frozen_split')
+    return split
+
+
+def _prepare(value, *, development=False):
     config = _config(value)
+    if development and not config.get('split_path'):
+        _fail('development_requires_frozen_split')
+    split = _frozen_split(config) if config.get('split_path') else None
     index_path = Path(config['index_path']).resolve()
     index = _json(index_path)
     if not isinstance(index, dict) or index.get('schema_version') != 1 or index.get('task') != TASK:
@@ -197,10 +214,7 @@ def _prepare(value):
         path = (index_path.parent / relative).resolve()
         if not path.is_relative_to(index_path.parent) or path.suffix != '.npz':
             _fail('unsafe_crop_path')
-        images = load_crop(path, record['crop_sha256'], (k, 1, size, size))
-        pixel_digest = hashlib.sha256(images.tobytes()).hexdigest()
-        if 'pixel_sha256' in record and record['pixel_sha256'] != pixel_digest:
-            _fail('prepared_pixel_digest_mismatch')
+        pixel_digest = record.get('pixel_sha256')
         for field in ('source_pixel_sha256', 'pixel_sha256'):
             if field in record and (not isinstance(record[field], str) or not HEX.fullmatch(record[field])):
                 _fail('invalid_pixel_digest')
@@ -208,14 +222,7 @@ def _prepare(value):
             if digest is not None and pixel_owners.setdefault((kind, digest), patient) != patient:
                 _fail('duplicate_pixel_patient_identity')
         paths.append(path)
-    if config.get('split_path'):
-        document = _json(config['split_path'])
-        split = document.get('membership') if isinstance(document, dict) else None
-        if not isinstance(document, dict) or document.get('task') != TASK or document.get('seed') != 42:
-            _fail('incompatible_frozen_split')
-        if document.get('split_digest') != _digest(split):
-            _fail('frozen_split_digest_mismatch')
-    else:
+    if split is None:
         split = build_split(records, development_only_patients=config.get('development_only_patients', []))
     patients = {r['patient_id'] for r in records}
     if not isinstance(split, dict) or set(split) != set(PARTITIONS):
@@ -234,7 +241,9 @@ def _prepare(value):
         _fail('development_patient_in_test')
     ownership = {p: part for part, ids in split.items() for p in ids}
     groups = {part: [i for i, r in enumerate(records) if ownership[r['patient_id']] == part] for part in PARTITIONS}
-    for ids in groups.values():
+    for part, ids in groups.items():
+        if development and part == 'test':
+            continue
         if {records[i]['binary_target'] for i in ids} != {0, 1}:
             _fail('missing_partition_binary_class')
     if config['mode'] == 'multilabel':
@@ -251,14 +260,27 @@ def _prepare(value):
                 _fail('cross_partition_duplicate')
             if field == 'source_sha256' and previous[1] != record['patient_id']:
                 _fail('duplicate_source_patient_identity')
+    # Ownership must be fully validated before reading any payload.
+    for i, record in enumerate(records):
+        if development and ownership[record['patient_id']] not in ('train', 'validation'):
+            continue
+        images = load_crop(paths[i], record['crop_sha256'], (k, 1, size, size))
+        pixel_digest = hashlib.sha256(images.tobytes()).hexdigest()
+        if 'pixel_sha256' in record and record['pixel_sha256'] != pixel_digest:
+            _fail('prepared_pixel_digest_mismatch')
+        if pixel_owners.setdefault(('prepared', pixel_digest), record['patient_id']) != record['patient_id']:
+            _fail('duplicate_pixel_patient_identity')
     binding = dict(task=TASK, mode=config['mode'], codebook_commit=CODEBOOK,
                    input_digest=_sha(index_path), split_digest=_digest(split),
                    target_mapping_digest=_digest({'normal': 0, 'pathology_codes': [1, 2, 3, 4, 5, 6]}))
+    if development:
+        groups.pop('test')
+        binding['evaluation_scope'] = 'development'
     return config, index, paths, split, groups, binding
 
 
-def preflight(config):
-    config, index, _, _, groups, binding = _prepare(config)
+def preflight(config, *, development=False):
+    config, index, _, _, groups, binding = _prepare(config, development=development)
     records = index['records']
     return dict(status='ready', task=TASK, mode=config['mode'], assessment_input='oracle_roi',
                 preprocessing=index['preprocessing'], bindings=binding,
@@ -301,14 +323,18 @@ def _deadline(start, config):
         _fail('runtime_limit_reached')
 
 
-def _predict(model, loader, device, start, config):
+def _predict(model, loader, device, start, config, *, collect_logits=False):
     model.eval()
-    values = []
+    values, logits_values = [], []
     with torch.no_grad():
         for images, _ in loader:
             _deadline(start, config)
-            values.append(torch.sigmoid(model(images.to(device))).cpu().numpy())
-    return np.concatenate(values)
+            logits = model(images.to(device))
+            values.append(torch.sigmoid(logits).cpu().numpy())
+            if collect_logits:
+                logits_values.append(logits.cpu().numpy())
+    probabilities = np.concatenate(values)
+    return (probabilities, np.concatenate(logits_values)) if collect_logits else probabilities
 
 
 def _auc(target, probability):
@@ -385,19 +411,19 @@ def load_checkpoint(path, device='cpu'):
         _fail('invalid_checkpoint')
 
 
-def train(config):
-    """Select on validation, freeze thresholds, then evaluate test exactly once."""
+def train(config, *, development=False):
+    """Select on validation; development never opens the frozen test payload."""
     try:
-        return _train(config)
+        return _train(config, development=development)
     except ResearchError:
         raise
     except Exception:
         raise ResearchError('research_execution_failed') from None
 
 
-def _train(config):
+def _train(config, *, development=False):
     start = time.monotonic()
-    config, index, paths, split, groups, binding = _prepare(config)
+    config, index, paths, split, groups, binding = _prepare(config, development=development)
     output = Path(config['output_dir'])
     if output.exists() and any(output.iterdir()):
         _fail('output_directory_not_empty')
@@ -445,6 +471,7 @@ def _train(config):
     best_score, best_epoch, stale, history, best_state = -math.inf, 0, 0, [], None
     for epoch in range(1, config['epochs'] + 1):
         model.train()
+        loss_sum, sample_count = 0., 0
         for images, target in loaders['train']:
             _deadline(start, config)
             optimizer.zero_grad()
@@ -452,12 +479,21 @@ def _train(config):
             loss = (loss_fn(logits, target.to(device)) * label_mask).sum() / (len(images) * label_mask.sum())
             loss.backward()
             optimizer.step()
-        probabilities = _predict(model, loaders['validation'], device, start, config)
+            loss_sum += float(loss.detach().cpu()) * len(images)
+            sample_count += len(images)
+        probabilities, validation_logits = _predict(model, loaders['validation'], device, start, config, collect_logits=True)
         metric = _metrics(targets['validation'], probabilities, [.5] * len(prevalence), evaluation_mask)
         score = metric['auroc'] if config['mode'] == 'binary' else metric['auprc']
         if score is None:
             _fail('no_validation_supported_labels')
-        history.append(dict(epoch=epoch, validation_selection_metric=score))
+        y = targets['validation']
+        with torch.no_grad():
+            validation_loss = loss_fn(torch.from_numpy(validation_logits).to(device), torch.from_numpy(y).to(device))
+            validation_loss = float(((validation_loss * label_mask).sum() / (len(y) * label_mask.sum())).cpu())
+        history.append(dict(epoch=epoch, validation_selection_metric=score,
+            train_weighted_loss=loss_sum / sample_count,
+            validation_weighted_loss=validation_loss,
+            validation_probability_std=float(probabilities[:, evaluation_mask].std())))
         if score > best_score:
             best_score, best_epoch, stale = score, epoch, 0
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
@@ -468,7 +504,7 @@ def _train(config):
     model.load_state_dict(best_state)
     validation = _predict(model, loaders['validation'], device, start, config)
     thresholds = _thresholds(targets['validation'], validation, evaluation_mask)
-    metadata = dict(mode=config['mode'], selected_epoch=best_epoch, thresholds=thresholds,
+    metadata = dict(mode=config['mode'], evaluation_scope='development' if development else 'holdout', selected_epoch=best_epoch, thresholds=thresholds,
                     preprocessing=preprocessing, bindings=binding, train_prevalence=prevalence.tolist(),
                     **calibration_support, config=config)
     checkpoint = output / 'checkpoint.private.pt'
@@ -478,40 +514,48 @@ def _train(config):
     replay = _predict(reloaded, loaders['validation'], device, start, config)
     if not np.array_equal(validation, replay):
         _fail('checkpoint_reload_mismatch')
-    test = _predict(reloaded, loaders['test'], device, start, config)
+    evaluated_part = 'validation' if development else 'test'
+    evaluated = validation if development else _predict(reloaded, loaders['test'], device, start, config)
     baseline_validation = np.broadcast_to(prevalence, validation.shape)
     baseline_thresholds = _thresholds(targets['validation'], baseline_validation, evaluation_mask)
-    baseline = np.broadcast_to(prevalence, test.shape)
-    test_metrics = {}
-    for name, probabilities, cutoffs in (('model', test, thresholds),
+    baseline = np.broadcast_to(prevalence, evaluated.shape)
+    evaluated_metrics = {}
+    for name, probabilities, cutoffs in (('model', evaluated, thresholds),
             ('constant_train_prevalence', baseline, baseline_thresholds)):
-        result = _metrics(targets['test'], probabilities, cutoffs, evaluation_mask)
+        result = _metrics(targets[evaluated_part], probabilities, cutoffs, evaluation_mask)
         for label, limitations, source in zip(result['labels'], label_limitations, threshold_sources):
             label['limitations'] = list(limitations)
             label['threshold_source'] = source
-        result['bootstrap'] = _bootstrap(targets['test'], probabilities, cutoffs,
-            [records[i]['patient_id'] for i in groups['test']], config['bootstrap_draws'], evaluation_mask, start, config)
-        test_metrics[name] = result
+        result['bootstrap'] = _bootstrap(targets[evaluated_part], probabilities, cutoffs,
+            [records[i]['patient_id'] for i in groups[evaluated_part]], config['bootstrap_draws'], evaluation_mask, start, config)
+        evaluated_metrics[name] = result
     predictions = []
-    # Reuse validation and test outputs; train inference is reporting only.
+    # Reuse evaluated outputs; train inference is reporting only.
     train_loader = DataLoader(datasets['train'], batch_size=config['batch_size'], shuffle=False)
     partition_predictions = dict(train=_predict(reloaded, train_loader, device, start, config),
-                                 validation=validation, test=test)
+                                 validation=validation)
+    if not development:
+        partition_predictions['test'] = evaluated
     for part, ids in groups.items():
         for row, i in enumerate(ids):
             predictions.append(dict(patient_id=records[i]['patient_id'], side=records[i]['side'],
                 partition=part, target=targets[part][row].tolist(), probability=partition_predictions[part][row].tolist()))
     _deadline(start, config)
     _write(output / 'predictions.private.json', dict(bindings=binding, records=predictions))
+    active_patients = {records[i]['patient_id'] for ids in groups.values() for i in ids}
     _write(output / 'manifest.private.json', dict(bindings=binding, metadata=metadata,
         crop_bindings=[dict(patient_id=r['patient_id'], side=r['side'], crop_sha256=r['crop_sha256'],
-                           source_sha256=r['source_sha256'], annotation_sha256=r['annotation_sha256']) for r in records]))
+                           source_sha256=r['source_sha256'], annotation_sha256=r['annotation_sha256']) for r in records if r['patient_id'] in active_patients]))
     report = dict(status='complete', task=TASK, mode=config['mode'], assessment_input='oracle_roi',
         preprocessing=preprocessing, bindings=binding, selected_epoch=best_epoch,
         selection_history=history, thresholds=thresholds, baseline_thresholds=baseline_thresholds,
         train_prevalence=prevalence.tolist(), **calibration_support,
-        checkpoint_reload_verified=True, test=test_metrics,
-        interpretation='oracle ROI patient holdout; no clinical or localization validation')
+        checkpoint_reload_verified=True, evaluation_scope='development' if development else 'holdout',
+        interpretation=('development: validation used for model/threshold selection; no unbiased quality estimate'
+                        if development else 'oracle ROI patient holdout; no clinical or localization validation'))
+    report[evaluated_part] = evaluated_metrics
+    if development:
+        report['train'] = dict(model=_metrics(targets['train'], partition_predictions['train'], thresholds, evaluation_mask))
     _write(output / 'report.json', report)
     _write(output / 'completion.json', dict(status='complete', bindings=binding,
         artifact_digests={p.name: _sha(p) for p in sorted(output.iterdir()) if p.is_file()}))

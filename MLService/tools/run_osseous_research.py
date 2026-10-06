@@ -12,10 +12,11 @@ def main(argv=None):
     action = parser.add_mutually_exclusive_group()
     action.add_argument('--preflight', action='store_true')
     action.add_argument('--train', action='store_true')
+    action.add_argument('--develop', action='store_true', help='Train/validation only; requires frozen split')
     args = parser.parse_args(argv)
     try:
         config = load_config(args.config)
-        report = preflight(config) if args.preflight else train(config)
+        report = preflight(config) if args.preflight else train(config, development=args.develop)
         print(json.dumps(report, sort_keys=True, allow_nan=False))
         return 0
     except ResearchError as error:

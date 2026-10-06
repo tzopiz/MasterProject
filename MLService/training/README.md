@@ -24,3 +24,8 @@
 ## Мониторинг обучения
 
 См. раздел «Мониторинг обучения» в [../README.md](../README.md).
+
+Для дальнейших osseous экспериментов используйте `train(config, development=True)`
+или `python -m tools.run_osseous_research --config <private.json> --develop`
+из MLService. Нужен `split_path` с уже закреплённым patient split. Этот режим
+не открывает test crops и явно обозначает validation результаты как development.
