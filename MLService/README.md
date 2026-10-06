@@ -292,3 +292,5 @@ AUROC0,727 (source1510,571), balancedaccuracy0,659. Это exploratory authorROI
 завершён: TRAIN-only CV AUROC0,697 против0,688 у frozen logistic. Прирост0,009
 и regression одного sourceprofile не прошли заранее заданный критерий;
 сохраняется frozen candidate. Worker занял80с, весь cloudjob около6,6мин.
+
+[Итоги исследований и точка продолжения за6октября2026](experiments/research_checkpoint_20261006/README.md).
