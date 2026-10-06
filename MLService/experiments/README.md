@@ -7,9 +7,23 @@
 ## Публичная когорта без новой разметки
 
 [TMJ-OD3D: аудит и протокол пилота](tmj_od3d_feasibility_20261005/README.md)
-— отдельная задача костных изменений. Статус ready-to-launch: авторский codebook
-подтверждён; выбранные 146 пациентов/289 сторон, оба preflight и два cloud
-bundle проверены. Добор остановлен пользователем; обучение не запускалось.
+— отдельная задача костных изменений. Авторский codebook подтверждён; выбраны146patients/289sides. Добор остановлен
+пользователем. Первый бинарный GPU-запуск завершён и проверен; результат
+на holdout ниже constant baseline, поэтому начаты отдельные TRAIN-only исследования.
+
+| Эксперимент | Фактический результат / следующий шаг |
+|---|---|
+| [Spatial capacity, 40 эпох](osseous_spatial_probe_20261006/README.md) | Критерий запоминания subset не выполнен |
+| [Capacity, 200 эпох](osseous_step_budget_probe_20261006/README.md) | Spatial запоминает TRAIN subset; это не обобщение |
+| [Patient CV, scratch CNN](osseous_grouped_cv_20261006/README.md) | Spatial не прошла критерий выбора; средний AUROC0,520 |
+| [Frozen ResNet features, patient CV](osseous_resnet_features_cv_20261006/README.md) | Средний AUROC0,609; допущена к original validation |
+| [Frozen ResNet, original validation](osseous_resnet_validation_20261006/README.md) | AUROC0,733; внутри profile1510,571; исследовательский кандидат сохранён |
+| [Nested TRAIN-only регуляризация](osseous_resnet_nested_regularization_20261006/README.md) | Mean AUROC0,688; допущен выбор C на full TRAIN |
+| [TRAIN-selected head, validation](osseous_resnet_selected_validation_20261006/README.md) | C0,01; AUROC0,727, balancedaccuracy0,659; без доказанного ranking gain |
+
+Протокол каждого эксперимента содержит актуальный статус и обезличенные агрегаты.
+Приватные изображения, IDs, individual predictions, признаки и веса не публикуются.
+Локальные CPU-проверки не отображаются в DataSphere Jobs.
 
 ## Бинарный классификатор положения (ноутбук)
 
