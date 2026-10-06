@@ -1,6 +1,6 @@
 # Совместимость упаковки и среды DataSphere
 
-Статус: ready
+Статус: done
 
 Спецификации: [FR-ML-OSSEOUS-CLOUD](../../../MLService/docs/spec/functional/osseous/README.md#fr-ml-osseous-cloud).
 
@@ -24,7 +24,7 @@
 
 - [x] Воспроизвести отказ и добавить регрессионную проверку requirements.
 - [x] Удалить комментарии, обновить baseline и реестр.
-- [ ] Проверить исправленный системный контейнер в реальном запуске после terminal ERROR прежнего; проверить tests, спецификации, официальный offline parser и новый private bundle; сохранить frozen bindings.
+- [x] Проверить исправленный системный контейнер в реальном запуске после terminal ERROR прежнего; проверить tests, спецификации, официальный offline parser и новый private bundle; сохранить frozen bindings.
 
 ## Проверка
 
@@ -32,4 +32,4 @@
 
 ## Результат
 
-Историческая manual установка дошла до imports и завершилась pandas/NumPy ABI error. Финальный plain bootstrap проверен локально: venv --without-pip плюс pip --python работает, synthetic PYTHONPATH с загрязняющим pandas не наследуется. Bash syntax и 21 cloud test прошли. Реальная проверка isolated imports/CUDA пока ожидается. Совместимость локальной упаковки исправлена; training, dataset, split, версии ML-пакетов и цена прежние; Python baseline явно согласован с наблюдаемым системным runtime 3.10. Платный запуск отдельного нового bundle разрешён пользователем; этот документ не объявляет облачное обучение успешным.
+Историческая manual установка дошла до imports и завершилась pandas/NumPy ABI error. Финальный plain bootstrap проверен локально: venv --without-pip плюс pip --python работает, synthetic PYTHONPATH с загрязняющим pandas не наследуется. Bash syntax и 21 cloud test прошли. Реальный isolated job подтвердил Python 3.10.12, Torch 2.6.0+cu118, NumPy 2.1.3, SciPy 1.14.1, scikit-learn 1.6.1, CUDA 11.8 и cuda_available=true без Traceback. Runtime сведён с plan, приватные receipts сохранены. Training completion и качество не являются приёмкой bootstrap и пока не объявляются. Совместимость локальной упаковки исправлена; training, dataset, split, версии ML-пакетов и цена прежние; Python baseline явно согласован с наблюдаемым системным runtime 3.10. Платный запуск отдельного нового bundle разрешён пользователем; этот документ не объявляет облачное обучение успешным.
