@@ -1,6 +1,6 @@
 # 015 — TRAIN-only fine-tuning последнего блока ResNet18
 
-Статус: open — library приёмка подтверждена, публикация PR ожидается
+Статус: done
 
 ## Проблема и целевое изменение
 
@@ -35,7 +35,7 @@ CPU extractor и scratch trainer defaults не меняются. Private orchest
 
 ## Результаты
 
-2026-10-06: реализация и library приёмка завершены; пункт3 — публикация PR — ожидается. Module288/test261строк.
+2026-10-06: все пункты library изменения выполнены; [PR113](https://github.com/tzopiz/MasterProject/pull/113) опубликован. Module288/test261строк.
 31focusedsyntheticchecks peerpassed2,58s;author62adjacentchecks2,74s;
 Rufflint/formatpassed. Independent review accepted sourceSHA
  ec63dafb3bc86b8d68208ce23271403ace1d6ab85f967936cc325067cef8064f,

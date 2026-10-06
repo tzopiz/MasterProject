@@ -2,7 +2,7 @@
 
 | Изменение | Статус | Результат |
 |---|---|---|
-| [015 — Layer4 fine-tuning](015-osseous-layer4/README.md) | open | Layer4 library принята,31 CPU checks/private replay; PR публикация ожидается |
+| [015 — Layer4 fine-tuning](015-osseous-layer4/README.md) | done | Layer4 library,31 CPU checks/private replay; PR113 опубликован, GPU CV отдельно |
 | [014 — A100 staging](014-osseous-a100/README.md) | done | Выбор g2.1, resource-specific quote/date;42 offline checks |
 | [013 — Frozen features](013-osseous-frozen-features/README.md) | done | Offline feature/head API,31 synthetic checks и точный private replay; CLI отдельно |
 | [012 — Архитектура](012-osseous-architecture/README.md) | done | Явный experimental spatial_head; default и legacy provenance сохранены |
