@@ -224,6 +224,41 @@ validation features требует точного совпадения с зак
 inference не выполняется. Это проверка реализации, не независимая оценка модели.
 Связь: [изменение013](../../../../../docs/changes/013-osseous-frozen-features/README.md).
 
+<a id="fr-ml-osseous-layer4"></a>
+## FR-ML-OSSEOUS-LAYER4 — Явное дообучение последнего блока
+
+`tmj_osseous_layer4` — отдельный binary library API: `load_layer4_model`,
+`cache_prefix`, `fit_epochs`, `predict`. Offline weights/wholeROI transform
+закреплены как FR-ML-OSSEOUS-FEATURES. Stem/layer1–3 frozen; все BatchNorm
+parameters/statistics frozen и eval даже после train(). Prefix cache —
+private FP32[N,16,256,14,14], без fitted statistics или labels.
+
+Zero Linear512→1head, mean16. Только head в первые2эпохи; затем layer4conv
+и head. AdamW headlr1e-3/conv1e-5,weightdecay1e-4,clipnorm1,batch4,seed42;
+BCEpos_weight fitnegative/positive, обе категории обязательны. Epochs1–16,
+без augmentation/scheduler. BF16 training требует nativeCUDA support, без
+silentfallback; explicitFP32 поддерживает CPU checks. Parameters/optimizer,
+logits/loss, cache и inferenceFP32. Validation, patient split и epoch selection
+принадлежат caller; callback послеэпохи и deadline не дают API права на запуск.
+
+Strict shapes/finite values/targets/device/precision проверяются; градиенты,
+loss/probabilities nonfinite отклоняются safeResearchErrorcodes. Caller хранит
+checkpoint/state_dict и source bindings приватно. Library не заменяет scratch
+trainer/defaultCLI и не обещает результата CV или clinical readiness.
+
+Приёмка: [TC-ML-OSSEOUS-LAYER4](#tc-ml-osseous-layer4).
+
+<a id="tc-ml-osseous-layer4"></a>
+### TC-ML-OSSEOUS-LAYER4 — Заморозка и воспроизводимость
+
+Synthetic CPU checks подтверждают frozenprefix/BN, warmup и толькоlayer4conv
+updates, exacttransform/cache-directagreement, sliceorderinvariance,
+state_dictreplay, fit-only loss, safeinputs/nativeBF16gate/deadlines.
+Короткий private2TRAINbag smoke проверяет настоящий digest-pinned backbone,
+3эпохи и exactcheckpoint replay без test inference. GPU/CV качество требует
+отдельного [эксперимента](../../../../experiments/osseous_layer4_cv_20261006/README.md).
+Связь: [изменение015](../../../../../docs/changes/015-osseous-layer4/README.md).
+
 <a id="fr-ml-osseous-cloud"></a>
 ## FR-ML-OSSEOUS-CLOUD — Подтверждение конкретного запуска
 

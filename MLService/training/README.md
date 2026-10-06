@@ -43,3 +43,10 @@
 Для extractor нужны совместимые PyTorch/torchvision и локальные официальные
 ResNet18 ImageNet1K V1 weights с указанным в контракте полным checksum;
 автоматической установки/download нет. Synthetic suite не требует этих весов.
+
+[Layer4 API](tmj_osseous_layer4.py) отдельно поддерживает frozen-prefix cache,
+две warmup эпохи для head и дальнейшее fine-tuning последнего блока.
+`fit_epochs` обучается только на переданных fit-строках; caller владеет inner
+selection и fresh refit. `predict` даёт FP32 binary probabilities.
+[Контракт и приёмка](../docs/spec/functional/osseous/README.md#fr-ml-osseous-layer4).
+Public CLI/orchestration для этого research варианта пока отсутствуют.
