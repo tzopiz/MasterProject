@@ -41,6 +41,9 @@ SOURCE_FILES = ('training/tmj_osseous_research.py',
                 'tools/osseous_cloud_bootstrap.sh')
 MAX_INDEX_BYTES=16*1024**2
 DOCKER_IMAGE='system-python-3-10'
+PUBLISHED_HOURLY_PRICES = {'gt4.1': 168.48, 'g2.1': 542.88}
+PUBLISHED_PRICE_DATES = {'gt4.1': '2026-10-05T00:00:00+03:00',
+                         'g2.1': '2026-10-06T00:00:00+03:00'}
 
 
 def _read_index(path):
@@ -65,15 +68,24 @@ def _read_index(path):
 
 
 def prepare_bundle(config_path,bundle_dir,*,project_id,profile='tmj-master',resource='gt4.1',
-                   hourly_price=168.48,currency='RUB',price_as_of='2026-10-05T00:00:00+03:00'):
+                   hourly_price=None,currency='RUB',price_as_of=None):
     """Local only. No staging can launch implicitly; confirmation binds exact bytes."""
     bundle=Path(bundle_dir).resolve()
     if bundle.exists():raise CloudLaunchError('bundle_exists')
     config=load_config(config_path);index=_read_index(config['index_path']);summary=preflight(config)
     if index.get('complete') is not True or index.get('failures'):
         raise CloudLaunchError('dataset_preparation_incomplete')
-    if resource!='gt4.1' or currency!='RUB' or not math.isfinite(float(hourly_price)) or float(hourly_price)<=0:
+    if (not isinstance(resource, str) or resource not in PUBLISHED_HOURLY_PRICES
+        or currency != 'RUB' or isinstance(hourly_price, bool)):
         raise CloudLaunchError('invalid_resource_quote')
+    try:
+        hourly_price = PUBLISHED_HOURLY_PRICES[resource] if hourly_price is None else float(hourly_price)
+    except (TypeError, ValueError, OverflowError):
+        raise CloudLaunchError('invalid_resource_quote') from None
+    if not math.isfinite(hourly_price) or hourly_price <= 0:
+        raise CloudLaunchError('invalid_resource_quote')
+    if price_as_of is None:
+        price_as_of = PUBLISHED_PRICE_DATES[resource]
     if datetime.fromisoformat(price_as_of).utcoffset() is None:raise CloudLaunchError('invalid_price_date')
     _identifier(project_id)
     if profile!='tmj-master':raise CloudLaunchError('unexpected_account_profile')
@@ -187,6 +199,8 @@ def results(bundle_dir,destination,cli_path='datasphere'):
 def main():
     parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='action',required=True)
     prep=sub.add_parser('prepare');prep.add_argument('--config',required=True);prep.add_argument('--bundle',required=True);prep.add_argument('--project-id',required=True)
+    prep.add_argument('--resource', choices=tuple(PUBLISHED_HOURLY_PRICES), default='gt4.1')
+    prep.add_argument('--hourly-price', type=float, default=None)
     confirm=sub.add_parser('confirm');confirm.add_argument('--bundle',required=True);confirm.add_argument('--digest',required=True);confirm.add_argument('--cli-path',default='datasphere')
     work=sub.add_parser('worker');work.add_argument('--config',required=True);work.add_argument('--max-runtime-seconds',type=int,required=True)
     for action in ('status','cancel','results','reconcile'):
@@ -198,7 +212,8 @@ def main():
     args=parser.parse_args()
     try:
         if args.action=='prepare':
-            plan=prepare_bundle(args.config,args.bundle,project_id=args.project_id)
+            plan=prepare_bundle(args.config,args.bundle,project_id=args.project_id,
+                                resource=args.resource,hourly_price=args.hourly_price)
             result={k:plan[k] for k in ('plan_sha256','task','upload_bytes','training_runtime_seconds','training_window_compute_estimate','currency')}
         elif args.action=='confirm':result=confirm_bundle(args.bundle,args.digest,cli_path=args.cli_path)
         elif args.action=='status':result=job_status(args.bundle,cli_path=args.cli_path)

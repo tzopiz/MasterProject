@@ -236,6 +236,12 @@ split, codebook и mapping. Payload ≤5 GiB. Confirm принимает SHA256 
 
 Requirements-file для официального CLI содержит только package specifiers и поддерживаемые pip flags, без комментариев. Plain системный контейнер `system-python-3-10`: bootstrap внутри manifest проверяет Python 3.10, создаёт isolated venv без system-site-packages, устанавливает закреплённые пакеты через pip --python, проверяет imports/CUDA и только затем запускает worker. PYTHONPATH/PYTHONHOME очищаются; env.python и дополнительный local-module upload не объявляются.
 
+API/CLI подготовки допускают `gt4.1` (T4, default) и `g2.1` (один A10080GB).
+Ресурс job совпадает с immutable plan. Default quote выбирается по ресурсу:
+168,48RUB/hourinclVAT на2026-10-05 для T4,542,88 на2026-10-06 для A100.
+Explicit positivefinite hourly_price override допустим; currency толькоRUB.
+Текущая доступность ресурса проверяется отдельно; offline staging её не обещает.
+
 План указывает project/profile, GPU, Python/requirements, стоимость на дату,
 время обучения и исключённые расходы. Watchdog ограничивает процесс обучения
 четырьмя часами; это не гарантия предельной суммы счёта, подготовка среды и

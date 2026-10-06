@@ -47,6 +47,7 @@ def test_local_staging_keeps_frozen_patient_members_and_osseous_mapping(
     assert config["architecture"] == architecture
     assert plan["bindings"].get("architecture", "global_mean") == architecture
     assert plan["training_window_compute_estimate"] == 168.48 * 30 / 3600
+    assert plan["price_as_of"] == "2026-10-05T00:00:00+03:00"
     assert _check_bundle(bundle, plan["plan_sha256"])["task"] == "tmj-osseous-author-roi-v1"
     job = json.loads((bundle / "job.yaml").read_text())
     assert job["env"]["docker"] == "system-python-3-10"
@@ -294,3 +295,135 @@ def test_cloud_requirements_are_accepted_by_datasphere_requirement_parser():
             continue
         requirement = Requirement(line)
         assert not requirement.marker and not requirement.url
+
+
+@pytest.mark.parametrize(
+    "hourly_price, expected, price_as_of",
+    [(None, 542.88, None), (600.0, 600.0, None), (None, 542.88, "2026-10-07T00:00:00+03:00")],
+)
+def test_a100_staging_binds_selected_resource_and_compute_quote(
+    tmp_path, monkeypatch, hourly_price, expected, price_as_of
+):
+    path, _, _ = config_fixture(tmp_path)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("provider IO"))
+    bundle = tmp_path / "bundle"
+    quote = {"hourly_price": hourly_price, "price_as_of": price_as_of}
+    plan = cloud.prepare_bundle(path, bundle, project_id="synthetic", resource="g2.1", **quote)
+    assert plan["resource"] == "g2.1" and plan["hourly_price"] == expected
+    assert plan["price_as_of"] == (price_as_of or "2026-10-06T00:00:00+03:00")
+    assert plan["training_window_compute_estimate"] == pytest.approx(expected / 120)
+    assert plan["money_cap_guaranteed"] is False
+    assert plan["excluded_costs"] == ["environment_setup", "storage", "egress"]
+    job = json.loads((bundle / "job.yaml").read_text())
+    assert job["cloud-instance-types"] == ["g2.1"]
+    assert _check_bundle(bundle, plan["plan_sha256"])["resource"] == "g2.1"
+
+
+@pytest.mark.parametrize(
+    "hourly_price", [0, -1, float("nan"), float("inf"), -float("inf"), "bad", True]
+)
+def test_invalid_resource_quotes_fail_safely_before_bundle_creation(tmp_path, hourly_price):
+    path, _, _ = config_fixture(tmp_path)
+    bundle = tmp_path / "bundle"
+    with pytest.raises(CloudLaunchError, match="^invalid_resource_quote$"):
+        cloud.prepare_bundle(path, bundle, project_id="synthetic", hourly_price=hourly_price)
+    assert not bundle.exists()
+
+
+@pytest.mark.parametrize("resource", ["g2.2", "gt4.2", "", None])
+def test_unknown_gpu_resource_refused_before_bundle_creation(tmp_path, resource):
+    path, _, _ = config_fixture(tmp_path)
+    bundle = tmp_path / "bundle"
+    with pytest.raises(CloudLaunchError, match="^invalid_resource_quote$"):
+        cloud.prepare_bundle(path, bundle, project_id="synthetic", resource=resource)
+    assert not bundle.exists()
+
+
+@pytest.mark.parametrize(
+    "options, resource, hourly_price",
+    [
+        ([], "gt4.1", 168.48),
+        (["--resource", "g2.1"], "g2.1", 542.88),
+        (["--resource", "g2.1", "--hourly-price", "600"], "g2.1", 600.0),
+    ],
+)
+def test_prepare_cli_stages_resource_with_selected_quote(
+    tmp_path, monkeypatch, capsys, options, resource, hourly_price
+):
+    import sys
+
+    path, _, _ = config_fixture(tmp_path)
+    bundle = tmp_path / "bundle"
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("provider IO"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "datasphere_osseous",
+            "prepare",
+            "--config",
+            str(path),
+            "--bundle",
+            str(bundle),
+            "--project-id",
+            "synthetic",
+            *options,
+        ],
+    )
+    assert cloud.main() == 0
+    output = json.loads(capsys.readouterr().out)
+    plan = json.loads((bundle / "plan.private.json").read_text())
+    assert plan["resource"] == resource and plan["hourly_price"] == hourly_price
+    assert (
+        plan["price_as_of"]
+        == {"gt4.1": "2026-10-05T00:00:00+03:00", "g2.1": "2026-10-06T00:00:00+03:00"}[resource]
+    )
+    assert output["training_window_compute_estimate"] == pytest.approx(hourly_price / 120)
+
+
+def test_prepare_cli_rejects_unknown_resource(tmp_path, monkeypatch, capsys):
+    import sys
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "datasphere_osseous",
+            "prepare",
+            "--config",
+            "unused",
+            "--bundle",
+            str(tmp_path / "bundle"),
+            "--project-id",
+            "synthetic",
+            "--resource",
+            "g2.2",
+        ],
+    )
+    with pytest.raises(SystemExit) as error:
+        cloud.main()
+    assert error.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
+    assert not (tmp_path / "bundle").exists()
+
+
+@pytest.mark.parametrize(
+    "filename, field, replacement",
+    [
+        ("plan.private.json", "hourly_price", 1),
+        ("job.yaml", "cloud-instance-types", ["gt4.1"]),
+    ],
+)
+def test_a100_confirmation_rejects_changed_quote_or_job(tmp_path, filename, field, replacement):
+    path, _, _ = config_fixture(tmp_path)
+    bundle = tmp_path / "bundle"
+    plan = cloud.prepare_bundle(path, bundle, project_id="synthetic", resource="g2.1")
+    target = bundle / filename
+    document = json.loads(target.read_text())
+    document[field] = replacement
+    target.write_text(json.dumps(document))
+    with pytest.raises(CloudLaunchError):
+        confirm_bundle(
+            bundle, plan["plan_sha256"], transport=lambda *a, **k: pytest.fail("submission")
+        )
+    assert not (bundle / "submission.private.json").exists()
