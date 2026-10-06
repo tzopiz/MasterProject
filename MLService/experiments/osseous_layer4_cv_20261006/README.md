@@ -1,6 +1,6 @@
 # Osseous layer4 TRAIN-only CV —2026-10-06
 
-Статус: planned; protocol frozen before new training.
+Статус: completed, negative adoption decision. Протокол ниже был зафиксирован до обучения; фактические результаты приведены в конце.
 
 ## Гипотеза и данные
 
@@ -55,4 +55,56 @@ setup/storage/egress отдельно. Это оценка, не hardmoneycap; b
 
 Private fixedmanifest/cache/checkpoints/innerhistory/OOFpredictions/progress,
 aggregate report/completion with digests. CPU smoke и independentworker/staging
-review обязательны до cloudsubmit. Платный запуск и improvement пока не выполнены.
+review обязательны до cloudsubmit. Платный запуск завершён; критерий improvement не выполнен.
+
+
+## Результат A100 — 2026-10-06
+
+DataSphere Job `bt1ovdhqt335unrmvb7q`: provider SUCCESS, worker complete/exit0.
+Фактическая среда: NVIDIA A100-SXM4-80GB, PyTorch2.6.0+cu118, CUDA11.8.
+Завершены все пять outer folds; selected epochs `[16,16,12,16,8]`,
+5236 optimizer steps. Исходные validation/test не открывались.
+
+| Метрика | Layer4 | Frozen nested logistic comparator |
+|---|---:|---:|
+| Mean fold AUROC | 0,697102 | 0,687931 |
+| Mean fold AUPRC | 0,846865 | 0,833053 |
+| Pooled OOF AUROC | 0,672513 | 0,669899 |
+| Profile111 pooled AUROC, 82 стороны | 0,714962 | 0,748106 |
+| Profile151 pooled AUROC, 122 стороны | 0,645954 | 0,611433 |
+
+Fold AUROC: `[0,720988;0,775510;0,693452;0,592262;0,703297]`.
+Парная meanfold разница +0,009170; выигрышей4/5. Paired patient bootstrap,
+200 valid draws: 95% interval разницы `[-0,025190;+0,049245]`.
+Profile111 support38positive/13negative contributingpatients;
+profile15146positive/36negative. Категории могут пересекаться для пациента
+с нормальной и патологической сторонами.
+
+**Решение: retain_frozen_logistic.** Прирост меньше заранее заданных0,025,
+а regression profile111−0,033144 превышает допустимые0,02. Пороговые метрики
+не используются для отмены этого решения: при0,5 pooled TN29/FP38/FN38/TP99,
+BCE0,916530; BCE по обоим профилям хуже comparator. Новая модель не выбрана
+для originalvalidation; эти development folds не дают новой blind holdout оценки.
+
+Worker80,05с; весь provider lifecycle394,693с (около6,6мин). Измеренные
+120actualupdates:48,06updates/s, peakCUDA336931840bytes. Оценка вычислений
+по опубликованной ставке542,88RUB/hour:59,52RUB за lifecycle; фактический
+счёт не проверен, storage/egress не включены. Начальный forecast и reservation
+выше — ограничения до запуска, а не фактическая стоимость.
+
+## Проверка артефактов
+
+Приватный completion содержит hashes всех артефактов; сверены все hashes,
+в том числе11обязательных файлов. Для всех folds повторно вычислены AUROC,
+сверены identities/targets с TRAIN manifest и inner epoch selection до outer
+inference. Все5producer checkpoint reload checks успешны. Дополнительно CPU
+replay fold1 на PyTorch2.11.0: max probability difference1,2517e-6 (<1e-5),
+AUROC совпал. Никакие patient IDs, predictions, cache или веса не опубликованы.
+
+- TRAIN manifest SHA256: `bba8660db1e1186a89a7411a8979312d664ddce61d636288b00e9376fb20eb61`.
+- Aggregate report SHA256: `e43c3c09bc2df63ce359b693483172b8c14596ff2cbe1abd353a83231d6eafc4`.
+- Completion SHA256: `fce5f56359d472cdcdc42027e2ed5fc793b521ec13095761519c5d7c2e9c8aab`.
+
+Следующая гипотеза оформляется отдельным протоколом. Отрицательный результат
+этого завершённого эксперимента не означает готовность произвольного DICOM
+к классификации или завершение общей исследовательской задачи.

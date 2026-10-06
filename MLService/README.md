@@ -287,3 +287,8 @@ AUROC0,727 (source1510,571), balancedaccuracy0,659. Это exploratory authorROI
 открывался. [Протоколы и текущий статус](experiments/README.md#публичная-когорта-без-новой-разметки).
 Модели/признаки приватны. [Offline feature/head API](training/README.md#frozen-osseous-features)
 воспроизводит рецепт; public CLI/CV orchestration пока отсутствуют.
+
+[Layer4 fine-tuning на A100](experiments/osseous_layer4_cv_20261006/README.md)
+завершён: TRAIN-only CV AUROC0,697 против0,688 у frozen logistic. Прирост0,009
+и regression одного sourceprofile не прошли заранее заданный критерий;
+сохраняется frozen candidate. Worker занял80с, весь cloudjob около6,6мин.
