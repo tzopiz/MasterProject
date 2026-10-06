@@ -1,6 +1,6 @@
 # Frozen ResNet18 max16 — TRAIN-only CV, 2026-10-06
 
-Статус: planned. Протокол зафиксирован до извлечения новых признаков и fit.
+Статус: completed, negative adoption decision. Протокол был зафиксирован до извлечения новых признаков и fit.
 
 ## Гипотеза и границы
 
@@ -65,6 +65,51 @@ retraining variability. Original validation/test не открываются в 
 
 ## Приёмка и результаты
 
-До запуска: не запускалось; метрик нет. Independent private-worker review,
-hash checks, exact checkpoint reload и aggregate result review обязательны.
-После исполнения записать время, фактическую команду, hashes и решение здесь.
+До запуска выполнено независимое ревью протокола и worker. Фактическое исполнение и проверки — ниже.
+
+
+## Фактический результат
+
+2026-10-06, CPU run exit0. Extraction80,41с, fits/bootstrap1,16с — в пределах
+900/180с. Выполнены90inner и5outer fits; selected C по folds:
+`[0.0001,1,0.01,0.01,0.01]`. Рецепт и версии среды совпали с протоколом;
+повторно извлечённый mean16 **точно совпал** с прежним cache (maxabs0,0).
+
+| Показатель | Max16 | Nested mean16 comparator |
+|---|---:|---:|
+| Mean fold AUROC | 0,640263 | 0,687931 |
+| Mean fold AUPRC | 0,804807 | 0,833053 |
+| Pooled OOF AUROC | 0,620111 | 0,669899 |
+| Profile111 AUROC | 0,691288 | 0,748106 |
+| Profile151 AUROC | 0,592930 | 0,611433 |
+
+Fold AUROC: `[0,698765;0,609694;0,711310;0,574405;0,607143]`, sampleSD0,060907.
+Mean paired delta−0,047668; выигрышей2/5. Bootstrap200/200 valid draws:
+95% percentile interval `[-0,104147;+0,021059]`. Profile111 support38positive /
+13negative contributing patients; profile15146positive /36negative.
+
+**Решение: retain_nested_mean16.** Не выполнены gain0,025 и wins4/5;
+profile111 regression0,056818 превышает допустимые0,02. Profile151 regression
+0,018503 находится в пределах. Не выбираем max16 для validation; старые
+validation/test изображения, features и predictions не открывались. Этот
+отрицательный результат относится к reused development folds и authorROI.
+
+## Воспроизведение и проверка
+
+Фактическая команда в private research root:
+`PYTHONDONTWRITEBYTECODE=1 <cloud-pins-venv>/bin/python resnet-max-features-cv-20261006/run.private.py`.
+Полный entrypoint path и environment bindings хранятся приватно; cloudjob не запускался.
+
+Все15completion hashes сверены; memberships/identities совпадают с comparator.
+Проверены exact coordinate-wise max и mean parity. Для всех пяти checkpoints
+root повторно загрузил модели и получил **точные** OOF probabilities; AUROC
+пересчитан, C соответствует сохранённой inner selection. Приватные rows/cache/
+checkpoints не опубликованы.
+
+- Worker SHA256: `64a9b99489ea8b48c1a3d35914b431566cb87677c5e86903a139ea0b1b5b78cf`.
+- Manifest SHA256: `9bb3470fc4f35c819351bf829148a9f80df5c8a24fcdad05680dd7f254a10c16`.
+- Report SHA256: `238bc838feec2960c31acc932722f799dc2688f63cd4ae2a8dab1cd7b19480b4`.
+- Completion SHA256: `d35061eacedea682e34381fab30917a3eaf877cc42b2ff5ef44c62bc12448c76`.
+
+Public feature API остаётся mean16. Для дальнейшей гипотезы нужен новый протокол;
+завершение этого эксперимента не означает завершение общей ML-задачи.

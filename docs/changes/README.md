@@ -2,7 +2,7 @@
 
 | Изменение | Статус | Результат |
 |---|---|---|
-| [016 — Max pooling](016-osseous-max-pooling/README.md) | open | Одна TRAIN-only CPU гипотеза, результат пока отсутствует |
+| [016 — Max pooling](016-osseous-max-pooling/README.md) | open | CPU experiment завершён, max16 отклонён; публикация результатов в работе |
 | [015 — Layer4 fine-tuning](015-osseous-layer4/README.md) | done | Layer4 library,31 CPU checks/private replay; PR113 опубликован, GPU CV отдельно |
 | [014 — A100 staging](014-osseous-a100/README.md) | done | Выбор g2.1, resource-specific quote/date;42 offline checks |
 | [013 — Frozen features](013-osseous-frozen-features/README.md) | done | Offline feature/head API,31 synthetic checks и точный private replay; CLI отдельно |
