@@ -37,9 +37,10 @@ from training.tmj_osseous_research import CODEBOOK, TASK, build_split, load_conf
 
 SOURCE_FILES = ('training/tmj_osseous_research.py',
                 'tools/run_osseous_research.py',
-                'tools/datasphere_osseous.py','tools/datasphere_research.py')
+                'tools/datasphere_osseous.py','tools/datasphere_research.py',
+                'tools/osseous_cloud_bootstrap.sh')
 MAX_INDEX_BYTES=16*1024**2
-DOCKER_IMAGE='nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04'
+DOCKER_IMAGE='system-python-3-10'
 
 
 def _read_index(path):
@@ -102,12 +103,12 @@ def prepare_bundle(config_path,bundle_dir,*,project_id,profile='tmj-master',reso
         manifest=_manifest(payload);size=sum(row['bytes'] for row in manifest.values())
         if size>5*1024**3:raise CloudLaunchError('upload_size_limit')
         runtime=config['max_runtime_seconds']
-        job={'name':'tmj-osseous-research','cmd':f'python3 payload/tools/datasphere_osseous.py worker --config payload/research.private.json --max-runtime-seconds {runtime}',
+        job={'name':'tmj-osseous-research','cmd':f'bash payload/tools/osseous_cloud_bootstrap.sh payload/research.private.json {runtime}',
              'inputs':['payload'],'outputs':['results'],'cloud-instance-types':[resource],
-             'env':{'docker':{'image':DOCKER_IMAGE},'python':{'type':'manual','version':'3.12','requirements-file':'payload/requirements.txt','local-paths':[]}}}
+             'env':{'docker':DOCKER_IMAGE}}
         _write(bundle/'job.yaml',job)
         plan={'schema_version':1,'task':TASK,'project_id':project_id,'profile':profile,
-              'resource':resource,'python':'3.12','docker_image':DOCKER_IMAGE,'manifest':manifest,'job_sha256':_hash_file(bundle/'job.yaml'),
+              'resource':resource,'python':'3.10','docker_image':DOCKER_IMAGE,'manifest':manifest,'job_sha256':_hash_file(bundle/'job.yaml'),
               'bindings':staged_summary['bindings'],'source_input_digest':summary['bindings']['input_digest'],'split_digest':split['split_digest'],'upload_bytes':size,
               'training_runtime_seconds':runtime,'hourly_price':float(hourly_price),'currency':currency,
               'price_as_of':price_as_of,'training_window_compute_estimate':float(hourly_price)*runtime/3600,

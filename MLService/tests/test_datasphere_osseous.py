@@ -42,8 +42,12 @@ def test_local_staging_keeps_frozen_patient_members_and_osseous_mapping(tmp_path
     assert plan["training_window_compute_estimate"] == 168.48 * 30 / 3600
     assert _check_bundle(bundle, plan["plan_sha256"])["task"] == "tmj-osseous-author-roi-v1"
     job = json.loads((bundle / "job.yaml").read_text())
-    assert job["env"]["docker"] == {"image": "nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04"}
-    assert plan["docker_image"] == "nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04"
+    assert job["env"]["docker"] == "system-python-3-10"
+    assert plan["docker_image"] == "system-python-3-10"
+    assert "python" not in job["env"]
+    assert plan["python"] == "3.10"
+    assert "tools/osseous_cloud_bootstrap.sh" in plan["manifest"]
+    assert job["cmd"].startswith("bash payload/tools/osseous_cloud_bootstrap.sh ")
     assert "torch==2.6.0+cu118" in (bundle / "payload/requirements.txt").read_text()
 
 
@@ -263,3 +267,16 @@ def test_prepare_rejects_oversized_index_before_unbounded_consumer_read(tmp_path
     monkeypatch.setattr(cloud, "preflight", forbidden)
     with pytest.raises(CloudLaunchError, match="^invalid_private_index$"):
         cloud.prepare_bundle(config_path, tmp_path / "bundle", project_id="synthetic")
+
+
+def test_cloud_requirements_are_accepted_by_datasphere_requirement_parser():
+    # DataSphere's parser accepts these pip flags but rejects comment lines.
+    from packaging.requirements import Requirement
+
+    path = Path(cloud.__file__).with_name("osseous_cloud_requirements.txt")
+    lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
+    for line in lines:
+        if line.startswith("--extra-index-url "):
+            continue
+        requirement = Requirement(line)
+        assert not requirement.marker and not requirement.url

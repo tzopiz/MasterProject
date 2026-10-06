@@ -133,6 +133,8 @@ consumer preflight после staging и фиксирует bytes/hash кода,
 split, codebook и mapping. Payload ≤5 GiB. Confirm принимает SHA256 плана;
 повторная отправка после неизвестного исхода запрещена до reconciliation.
 
+Requirements-file для официального CLI содержит только package specifiers и поддерживаемые pip flags, без комментариев. Plain системный контейнер `system-python-3-10`: bootstrap внутри manifest проверяет Python 3.10, создаёт isolated venv без system-site-packages, устанавливает закреплённые пакеты через pip --python, проверяет imports/CUDA и только затем запускает worker. PYTHONPATH/PYTHONHOME очищаются; env.python и дополнительный local-module upload не объявляются.
+
 План указывает project/profile, GPU, Python/requirements, стоимость на дату,
 время обучения и исключённые расходы. Watchdog ограничивает процесс обучения
 четырьмя часами; это не гарантия предельной суммы счёта, подготовка среды и

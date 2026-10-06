@@ -1,6 +1,6 @@
 # TMJ-OD3D V2 — проверка готовности публичной когорты
 
-Статус: ready-to-launch. Run ID: tmj_od3d_feasibility_20261005.
+Статус: completed-negative (первый binary run). Run ID: tmj_od3d_feasibility_20261005.
 Дата протокола: 2026-10-05.
 [Изменение](../../../docs/changes/003-tmj-od3d-pilot/README.md).
 
@@ -210,3 +210,59 @@ Git. Остаётся подтверждение выбранного платн
 проверяются training status, completion bindings/artifact digests и модель
 сравнивается с constant train-prevalence baseline на frozen test один раз.
 Исследование готово к запуску; улучшение качества ещё не измерено.
+
+## Первый разрешённый запуск 2026-10-06
+
+Пользователь подтвердил бинарный запуск на T4; метрики пока не получены.
+Два локальных отказа CLI произошли до create; первый cloud job завершился
+ERROR до training из-за отсутствия Python во внешнем CUDA image. Новый
+системный контейнер выделен, установка dependencies началась. Логи подтверждают
+Python 3.10.12 вместо requested 3.12; дальнейшие планы используют 3.10 явно.
+Torch 2.6.0+cu118, NumPy 2.1.3, SciPy 1.14.1, scikit-learn 1.6.1, GPU,
+training protocol, patient partitions и all input/split bindings прежние.
+Частные receipts, platform logs и фактическая версия сохранены вне Git.
+Status EXECUTING означает выполнение облачного задания, не успешное обучение.
+Исправление упаковки и runtime: [010](../../../docs/changes/010-datasphere-requirements/README.md).
+
+После system bootstrap проявился global pandas/NumPy ABI конфликт; worker
+не начал обучение и job завершился ERROR. Финальный запуск использует чистую
+venv из plain контейнера, без наследования site-packages; legacy inputs/split
+не меняются. Тестовые данные в двух ошибочных job не оценивались.
+
+Isolated bootstrap прошёл реальную проверку: Python 3.10.12,
+Torch 2.6.0+cu118, NumPy 2.1.3, SciPy 1.14.1, scikit-learn 1.6.1,
+CUDA 11.8 доступны; inherited pandas не импортируется. Это подтверждает
+среду перед worker, но не завершение обучения или целевую метрику.
+
+## Результат первого binary training 2026-10-06
+
+Фактический job SUCCESS; worker training complete/exit 0. Приватные results
+скачаны с логами; completion, report, checkpoint, predictions и frozen
+data/split bindings прошли artifact digest verification. Python 3.10.12,
+Torch 2.6.0+cu118, CUDA 11.8, NumPy 2.1.3, SciPy 1.14.1,
+scikit-learn 1.6.1 подтверждены runtime log; GPU использован.
+
+Записано 10 epochs; выбран epoch 2 только по validation. Порог
+0.5080728530883789 выбран на validation, final test оценён после selection.
+Test — 22 пациента / 42 стороны (28 positive, 14 normal).
+
+| Показатель | Модель | Constant train-prevalence baseline |
+|---|---:|---:|
+| AUROC | 0.290816 | 0.500000 |
+| AUPRC | 0.587786 | 0.666667 |
+| Sensitivity | 0.285714 | 1.000000 |
+| Specificity | 0.428571 | 0.000000 |
+
+Patient bootstrap: 200/200 valid draws; model AUROC interval
+[0.154624, 0.447838], AUPRC [0.394051, 0.859589]. Confusion:
+TP=8, TN=6, FP=8, FN=20. Отрицательный исследовательский результат:
+качество ниже constant baseline, целевая клиническая точность не достигнута.
+Это oracle-ROI костные изменения, не автоматическая оценка положения из
+произвольного DICOM. Не менять ориентацию вероятностей/порог по final test
+и не выдавать повторный выбор модели на нём за независимую проверку.
+
+Следующий этап — диагностика preprocessing/разметки и сравнение моделей
+на train/validation; новый протокол обязателен до следующего платного run.
+Multilabel пакет с исправленным isolated bootstrap готов локально,
+но его обучение не запускалось. Веса, predictions, логи и provider receipts
+сохранены приватно; наружу опубликованы только агрегаты.
