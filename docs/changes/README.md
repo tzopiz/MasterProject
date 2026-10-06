@@ -2,6 +2,7 @@
 
 | Изменение | Статус | Результат |
 |---|---|---|
+| [012 — Архитектура](012-osseous-architecture/README.md) | open | Явный experimental spatial_head; default и legacy provenance сохранены |
 | [011 — Development](011-osseous-development/README.md) | done | Train/validation изоляция, stable loss, 51 checks; TRAIN-only диагностика отдельно |
 | [003 — TMJ-OD3D](003-tmj-od3d-pilot/README.md) | done | Готовый запуск выбранной когорты; добор остановлен пользователем |
 | [004 — Intake](004-od3d-intake/README.md) | done | Реальные CSV/JSON и 58 целевых тестов проверены; итоговый suite 585 passed |

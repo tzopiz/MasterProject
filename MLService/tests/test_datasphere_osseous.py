@@ -22,8 +22,13 @@ def config_fixture(tmp_path):
     return path, index, config
 
 
-def test_local_staging_keeps_frozen_patient_members_and_osseous_mapping(tmp_path, monkeypatch):
+@pytest.mark.parametrize("architecture", ["global_mean", "spatial_head"])
+def test_local_staging_keeps_frozen_patient_members_and_osseous_mapping(
+    tmp_path, monkeypatch, architecture
+):
     path, index, config = config_fixture(tmp_path)
+    config["architecture"] = architecture
+    path.write_text(json.dumps(config))
 
     def forbidden(*a, **k):
         raise AssertionError("prepare must not call provider")
@@ -39,6 +44,8 @@ def test_local_staging_keeps_frozen_patient_members_and_osseous_mapping(tmp_path
     assert config["device"] == "cuda" and config["split_path"] == "split.private.json"
     staged_summary = cloud.preflight(cloud.load_config(bundle / "payload/research.private.json"))
     assert plan["bindings"] == staged_summary["bindings"]
+    assert config["architecture"] == architecture
+    assert plan["bindings"].get("architecture", "global_mean") == architecture
     assert plan["training_window_compute_estimate"] == 168.48 * 30 / 3600
     assert _check_bundle(bundle, plan["plan_sha256"])["task"] == "tmj-osseous-author-roi-v1"
     job = json.loads((bundle / "job.yaml").read_text())
@@ -75,6 +82,13 @@ def test_completion_requires_actual_artifacts_and_bound_hashes(tmp_path):
     _, _, config = config_fixture(tmp_path)
     train(config)
     root = Path(config["output_dir"])
+    assert cloud.artifacts_complete(root)
+    report = json.loads((root / "report.json").read_text())
+    report.pop("architecture")  # Historical reports have no architecture field.
+    (root / "report.json").write_text(json.dumps(report))
+    completion = json.loads((root / "completion.json").read_text())
+    completion["artifact_digests"]["report.json"] = cloud._hash_file(root / "report.json")
+    (root / "completion.json").write_text(json.dumps(completion))
     assert cloud.artifacts_complete(root)
     (root / "predictions.private.json").write_text("{}")
     assert not cloud.artifacts_complete(root)

@@ -123,6 +123,35 @@ CPU обучение обоих режимов, сохранение и
 выбранной эпохи и порогов при изменении test labels. Публичный отчёт содержит
 агрегаты; predictions, membership, checkpoints и index остаются приватными.
 
+<a id="fr-ml-osseous-architecture"></a>
+## FR-ML-OSSEOUS-ARCHITECTURE — Явный экспериментальный вариант
+
+Config `architecture` принимает только `global_mean` (default, прежняя модель)
+или `spatial_head` (экспериментальный вариант; критерий TRAIN-only CV не выполнен).
+Spatial наследует тот же conv trunk и mean pooling срезов, меняет финальную
+AdaptiveAvgPool2d на 4×4 и head на Linear(256,32), ReLU, Linear(32,outputs).
+Binary/multilabel имеют 1/6 outputs. Остальные параметры baseline неизменны.
+Технический TRAIN-only fit probe мотивирует доступность для воспроизведения.
+Patient CV не прошла критерий выбора; вариант не выбран для validation.
+
+Metadata/config checkpoint и публичный report фиксируют имя; reload проверяет
+согласованность metadata/config/bindings. Старые отсутствующие имена означают
+`global_mean`. Только `spatial_head` добавляет имя в bindings, чтобы не менять
+прежние immutable bundles. Неизвестное имя отклоняется безопасным
+`unsupported_architecture`; конфликт — `checkpoint_architecture_mismatch`.
+Cloud staging сохраняет выбор, consumer проверяет report/binding и digests.
+
+Приёмка: [TC-ML-OSSEOUS-ARCHITECTURE](#tc-ml-osseous-architecture).
+
+<a id="tc-ml-osseous-architecture"></a>
+### TC-ML-OSSEOUS-ARCHITECTURE — Совместимость и восстановление
+
+Оба spatial development режима работают без test NPZ и воспроизводят checkpoint
+predictions. Порядок срезов не меняет logits; default и legacy checkpoint дают
+точные прежние logits/bindings. Неизвестные/несогласованные имена отклоняются,
+cloud staging сохраняет вариант и старые reports остаются допустимыми.
+Связь: [изменение 012](../../../../../docs/changes/012-osseous-architecture/README.md).
+
 <a id="fr-ml-osseous-development"></a>
 ## FR-ML-OSSEOUS-DEVELOPMENT — Эксперименты без test inference
 
