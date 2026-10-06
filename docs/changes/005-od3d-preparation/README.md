@@ -43,13 +43,105 @@ CSV codes должны совпадать с unionJSONcodes, пропуск/пу
 
 ## Результаты
 
-Helper подготовки ROI реализован; 12 targeted tests проверены (включая
-пустую сторону, sparse Instances, отсутствие reference и изменённые headers).
-Три реальных технических пациента дали шесть приватных side bags;
-это не репрезентативная оценка анатомии или качества модели.
-Streaming/resume реализуется отдельным зависимым изменением этой задачи.
-Критерий завершения полного набора: достигнут EOF архива,
+Не выполнено. Критерий завершения полного набора: достигнут EOF архива,
 каждая CSVстрока имеет inclusion/exclusion reason, checksumindex и фактические
 counts; небольшая smokeвыборка не является готовностью всей когорты.
 
 
+### Ограниченный Range reader и восстановление
+
+`tools/prepare_tmj_od3d.py::RangeReader` получает архив четырьмя HTTP Range
+workers, chunk 8 MiB, максимум четыре queued chunks; отдаёт байты строго по
+порядку и не сохраняет полный TAR. Вместе с текущим buffer и ограниченным
+read output объём собственных byte buffers остаётся ниже 64 MiB. Каждый
+ответ проверяет 206, точный Content-Range/Content-Length, identity encoding
+и длину body; максимум три попытки, ошибки транспорта экспортируются
+фиксированным кодом. Лимит download задаёт разрешённый диапазон уникальных
+байтов, включая prefetch; повторы могут повторно перенести этот диапазон,
+до трёх попыток каждого chunk. На patient limit/исключении pending futures
+отменяются, активные workers закрывают ответы и join; timeout каждого запроса
+30 секунд. Absolute TAR offsets для resume сохранены.
+
+Поддерживаемый корень фактического V2 TAR — tmj. Запрещены traversal,
+links/special files, вложенные подпапки и duplicate members, включая каталоги.
+Размер prepared storage вычисляется при resume и затем только для новых
+результатов завершённого пациента. Превышение 5 GiB удаляет новые
+uncommitted side crops и останавливает запуск.
+
+Lock содержит PID. Явный `--reconcile-stale-lock` отказывает при живом или
+непроверяемом/старом пустом lock; PID должен отсутствовать по os.kill(pid,0).
+Если lock отсутствует, recovery сначала приобретает собственный O_EXCL lock.
+Строгие ours-format 64hex-L/R.npz вне сохранённого state переносятся в
+приватный quarantine, общий quarantine limit 5 GiB; неизвестные файлы,
+symlinks и invalid state отказывают без удаления данных. При обычном resume
+orphans отклоняются и не превращаются в исключённых пациентов.
+
+Новые patient_receipts сохраняются только в preparation.private.json:
+namespace hash пациента, tar_start/tar_end, status/code, side_count.
+Они исключены из training index и позволяют адресно повторить проблемный
+диапазон без повторного сканирования полного TAR. Старый state получает
+пустой receipt list; исторические диапазоны не восстановлены догадкой.
+
+Проверка этого изменения: targeted
+`cloud-pins-venv/bin/python -m pytest -p no:cacheprovider MLService/tests/test_prepare_tmj_od3d.py -q`
+из корня — **25 passed**; TDD red наблюдался для отсутствующего reader,
+нарушений layout/retry privacy, storage rollback и explicit orphan recovery.
+Ruff F/I checks двух файлов — PASS; весь compact formatting не заявлен
+проверенным. Live source/performance и полный набор этим шагом не проверялись;
+действующий процесс подготовки не прерывался и не перезапускался агентом.
+
+## Реальный release: отсутствующий референсный файл
+
+Author render_sample_slice выбирает существующий InstanceNumber и применяет
+bbox.contains_slice независимо от наличия image_path. Для slice-bag
+референсный файл необязателен: ни один отсутствующий срез не создаётся.
+Проверять folder/CSV/side/codes, общие frame dimensions и только опубликованные
+срезы в объявленном диапазоне; число отсутствующих reference images сохранять
+в provenance. Присутствующий reference вне range по-прежнему ошибка.
+Старый проход остановлен по SIGINT после подтверждения live PID и завершения
+handle; его артефакты сохранены. Новый полный проход нужен для восстановления
+исследований, ошибочно исключённых строгим требованием reference filename.
+
+Ревью обнаружило потерю валидной стороны при пустом JSON второй стороны.
+Две регрессии (L/R) сначала падали с empty_annotation; исправлено локальное
+исключение только пустой стороны с reason. Остальные ошибки аннотации
+по-прежнему отклоняют пациента. Live процесс использует загруженную ранее
+версию helper; новые файлы не меняют его поведение. После полного прохода
+потребуется адресно проверить такие failure receipts при их наличии.
+
+Полный проход остановился транспортной ошибкой source_range_failed после
+77 завершённых пациентов. Exec handle подтвердил exit 1; raw-cache удалён
+штатным finally, checkpoint и готовые crops сохранены. Возобновление выполняется
+в тот же output root с проверкой hashes, от next_offset, без второго live reader.
+Последний helper включает исправление empty_annotation; предыдущие prepared
+records не менялись. Обнаружено два annotation_side_conflict, требующие 008.
+
+## Диагностика transport rate limit
+
+Однократный диагностический запрос 512 bytes к checkpoint offset подтвердил
+HTTP 429 без Retry-After. Повтор source_range_failed не был ошибкой DICOM
+или checkpoint. План: Range reader различает source_rate_limited и перед
+повтором 429 учитывает ограниченную паузу (Retry-After с пределом 60 s,
+без заголовка 30/60 s). Пауза interruptible через существующий stop Event,
+число попыток остаётся три. Тесты без реальных пауз проверяют schedule и
+закрытие; live full scan возобновляется только после завершения старого handle.
+
+Backoff regression сначала наблюдался red в пяти сценариях. После исправления
+все 30 streaming tests — PASS за 0.47 s; raw HTTP reason/URL не выводятся.
+Подготовка, staging и side exclusion отдельно проверены: 57 focused tests — PASS
+перед добавлением rate limit regression. Исходный HTTP 429 остаётся внешним
+ограничением, исправление reader не выдаётся за завершение загрузки.
+
+## Приёмка восстановления EOF
+
+Независимое ревью обнаружило два окна сбоя: после последнего patient state
+(next_offset=ARCHIVE_BYTES, complete=false) и между сохранением complete state
+и index. План: при resume проверить coverage EOF checkpoint, завершить state
+и восстановить derived index до возврата без сетевого чтения. Fault injection
+на обеих границах должен воспроизвести дефект и подтвердить исправление.
+
+Обе fault-injection регрессии сначала падали: invalid_download_budget и
+устаревший complete=false index. После исправления все 32 targeted tests —
+PASS за 0.70 s. Resume EOF не вызывает urlopen и сохраняет hashes crops.
+После cooldown реальный supervisor возобновил source scan с 77 до 86
+завершённых пациентов; это ещё не полная когорта.
